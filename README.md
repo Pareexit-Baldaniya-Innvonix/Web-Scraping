@@ -19,13 +19,16 @@ WEB-SCRAPING/
 │   │   ├── Scraper.py           # Core scraping logic
 │   │   └── Settings.py          # Environment-based settings (pydantic-settings)
 │   ├── config/
-│   │   └── constants.py         # HTTP headers & directory constants
+│   │   ├── constants.py         # HTTP headers & directory constants
+│   │   └── selectors.py         # BeautifulSoup CSS selectors
 │   ├── utils/
 │   │   └── logger.py            # Centralized logging setup
 │   └── main.py                  # Entry point
-├── example.env                  # Example env file for reference
+├── .env                         # Local environment variables (git-ignored)
 ├── .gitignore
-└── README.md
+├── example.env                  # Example env file for reference
+├── README.md
+└── requirements.txt             # Project dependencies
 ```
 
 ---
