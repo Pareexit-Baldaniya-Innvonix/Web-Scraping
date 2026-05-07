@@ -1,0 +1,16 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+requests = "*"
+beautifulsoup4 = "*"
+pydantic = "*"
+pydantic-settings = "*"
+python-json-logger = "*"
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"
