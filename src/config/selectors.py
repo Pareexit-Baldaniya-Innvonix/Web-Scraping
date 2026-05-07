@@ -7,7 +7,7 @@ SELECTORS: Dict[str, Tuple[str, dict]] = {
     # ----- price -----
     "price_whole": ("span", {"class": "a-price-whole"}),
     "price_fraction": ("span", {"class": "a-price-fraction"}),
-    "price_symbol": ("span", {"class": "a-price-symbol"}),
+    "price_offscreen": ("span", {"class": "a-price a-offscreen"}),
     
     # ----- ratings -----
     "ratings_alt": ("span", {"class": "a-icon-alt"}),
