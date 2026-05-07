@@ -33,7 +33,7 @@ def main() -> None:
         # ----- check scraping is completed or not. -----
         if product:
             logger.info("Scraping completed in %.2fs", elapsed)
-            scraper.save_data(product)
+            scraper.print_data(product)
         else:
             logger.error("Scraping failed after %.2fs", elapsed)
     except Exception:
