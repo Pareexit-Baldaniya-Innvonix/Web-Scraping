@@ -1,10 +1,11 @@
 # ----- library import -----
+import os
 import logging
 from logging import Logger
 from logging.config import dictConfig
 
 # ----- local import -----
-from classes.Settings import settings
+from src.classes.Settings import settings
 
 # ----- unified format -----
 _LOG_FORMAT: str = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -48,6 +49,14 @@ LOGGING_CONFIG: dict[str, any] = {
             "class": "logging.StreamHandler",
             "stream": "ext://sys.stdout",
         },
+        "file": {
+            "level": TARGET_LEVEL,
+            "formatter": SELECTED_FORMATTER,
+            "class": "logging.FileHandler",
+            "filename": "logs/scraper.log",
+            "mode": "a",
+            "encoding": "utf-8",
+        },
     },
     "loggers": {
         "urllib3": {
@@ -57,7 +66,7 @@ LOGGING_CONFIG: dict[str, any] = {
         },
     },
     "root": {
-        "handlers": ["console"],
+        "handlers": ["console", "file"],
         "level": TARGET_LEVEL,
     },
 }
@@ -67,6 +76,7 @@ LOGGING_CONFIG: dict[str, any] = {
 def setup_logging() -> None:
     """Initializes the logging configuration."""
     try:
+        os.makedirs("logs", exist_ok=True)
         dictConfig(LOGGING_CONFIG)
     except Exception as error:
         logging.basicConfig(level=logging.INFO)
