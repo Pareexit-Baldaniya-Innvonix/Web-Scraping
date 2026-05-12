@@ -1,15 +1,15 @@
 # ----- library import -----
 from typing import Optional, Union
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class Product(BaseModel):
     title: str
-    price: Optional[float]
-    ratings: float
-    reviews_count: Optional[int]
+    price: Optional[float] = None
+    ratings: Optional[float] = None
+    reviews_count: Optional[int] = None
     description: Union[list[str], str]
-    variants: Optional[list[dict]] = Field(default=None)
+    variants: Optional[list[dict]] = None
 
     def to_dict(self) -> dict:
         return self.model_dump()
