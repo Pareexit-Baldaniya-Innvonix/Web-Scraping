@@ -2,11 +2,10 @@
 import re
 import os
 import json
-from sqlite3.dbapi2 import Timestamp
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse
-from typing import Optional, Union
+from typing import Optional
 
 # ----- local import -----
 from src.config.constants import HEADERS, OUTPUT_DIR
