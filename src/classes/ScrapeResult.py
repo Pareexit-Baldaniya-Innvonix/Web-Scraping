@@ -1,7 +1,8 @@
+# ----- library import -----
 from typing import Optional
-
 from pydantic import BaseModel
 
+# ----- local import -----
 from .Product import Product
 from .ScrapeFailReason import ScrapeFailReason
 
