@@ -205,7 +205,7 @@ Scrapes product details from a given Amazon India URL.
 3. Go to the **Body** tab → select **raw** → choose **JSON** from the dropdown.
 4. Enter the request body:
    ```json
-   {
+    {
         "url": "https://www.amazon.in/Samsung-Storage-Privacy-Creative-Snapdragon/dp/B0GL8FNY5G/ref=pd_sbs_d_sccl_1_1/523-0876978-0970865?pd_rd_w=l8J0r&content-id=amzn1.sym.d1406b44-aa69-47e4-9270-f613e12d52dc&pf_rd_p=d1406b44-aa69-47e4-9270-f613e12d52dc&pf_rd_r=KVGE0ATT2KXHC21KGJFK&pd_rd_wg=6Z2l0&pd_rd_r=a32fd6c0-1af1-4be1-97ec-850ec1a58421&pd_rd_i=B0GL8FNY5G&th=1"
     }
    ```
