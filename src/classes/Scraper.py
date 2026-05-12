@@ -4,10 +4,12 @@ import os
 import json
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
-from typing import Optional
+from urllib.parse import urlparse, urlunparse
+from typing import List, Optional
 
 # ----- local import -----
+from .ScrapeResult import ScrapeResult
+from .ScrapeFailReason import ScrapeFailReason
 from src.config.constants import HEADERS, OUTPUT_DIR
 from src.config.selectors import SELECTORS
 from .Product import Product
@@ -51,22 +53,85 @@ class Scraper:
             logger.error("URL validation raised an exception: %s", exc, exc_info=True)
             return False
 
+    @staticmethod
+    def normalize_url(url: str) -> str:
+        """Rewrite amazon.in → www.amazon.in for a stable canonical host."""
+        parsed = urlparse(url)
+        netloc = parsed.netloc.lower()
+
+        # ----- strip port for comparison, preserve it for reconstruction -----
+        host = netloc.split(":")[0]
+        port = netloc[len(host) :]  # e.g. ":8080" or ""
+
+        if host == "amazon.in":
+            netloc = f"www.amazon.in{port}"
+
+        # ----- Strip tracking parameters (the 'ref' and 'qid' stuff) for cleaner requests -----
+        return urlunparse(parsed._replace(netloc=netloc, query=""))
+
+    @staticmethod
+    def is_blocked(soup: BeautifulSoup) -> bool:
+        page_title = soup.find("title")
+        if page_title:
+            t = page_title.get_text(strip=True).lower()
+            if any(
+                kw in t
+                for kw in (
+                    "robot check",
+                    "something went wrong",
+                    "page not found",
+                    "sign in",
+                )
+            ):
+                return True
+        body_text = soup.get_text(separator=" ", strip=True).lower()
+        if any(
+            kw in body_text
+            for kw in (
+                "type the characters you see",
+                "enter the characters you see",
+                "sorry, we just need to make sure you're not a robot",
+            )
+        ):
+            return True
+        return False
+
     # ----- scraping data from the url (core implementation) -----
-    def scraping_data(self) -> Optional[Product]:
+    def scraping_data(self) -> ScrapeResult:
         logger.info("Scraping started.")
+
+        self.url = Scraper.normalize_url(self.url)
 
         try:
             # ----- getting response of the url -----
-            response = self.session.get(self.url, timeout=10)
-            response.raise_for_status()
+            response = self.session.get(self.url, timeout=15)
+            if response.status_code == 404:
+                return ScrapeResult(
+                    success=False,
+                    reason=ScrapeFailReason.PARSE_ERROR,
+                    detail="Product not found (404).",
+                )
 
+            response.raise_for_status()
             self.save_raw_response(response.text)
 
         except requests.RequestException as error:
             logger.error("Request error: %s", error, exc_info=True)
-            return None
+            return ScrapeResult(
+                success=False,
+                reason=ScrapeFailReason.NETWORK_ERROR,
+                detail=f"Network error while fetching URL: {error}",
+            )
 
         soup = BeautifulSoup(response.content, "html.parser")
+
+        if Scraper.is_blocked(soup):
+            logger.warning("Blocked by Amazon (CAPTCHA or redirect)")
+            return ScrapeResult(
+                success=False,
+                reason=ScrapeFailReason.BLOCKED,
+                detail="Amazon blocked the request. Try again later.",
+            )
 
         # ----- fetch every field individually -----
         try:
@@ -86,16 +151,20 @@ class Scraper:
                 product.ratings,
                 product.reviews_count,
             )
-            return product
+            return ScrapeResult(success=True, product=product)
         except Exception as exc:
             logger.error("Extraction failed: %s", exc, exc_info=True)
-            return None
+            return ScrapeResult(
+                success=False,
+                reason=ScrapeFailReason.PARSE_ERROR,
+                detail=f"Failed to parse product data: {exc}",
+            )
 
     # ----- saving response of URL as a html file -----
     def save_raw_response(self, html_content: str) -> None:
         try:
             os.makedirs(OUTPUT_DIR, exist_ok=True)
-            file_path: str = os.path.join(OUTPUT_DIR, f"source.html")
+            file_path: str = os.path.join(OUTPUT_DIR, "source.html")
 
             with open(file_path, "w", encoding="utf-8") as f:
                 f.write(html_content)
@@ -159,7 +228,7 @@ class Scraper:
             return None
 
     # ----- product ratings -----
-    def ratings_details(self, soup: BeautifulSoup) -> float:
+    def ratings_details(self, soup: BeautifulSoup) -> Optional[float]:
         rating_selectors = [
             SELECTORS["ratings_popover"],
             SELECTORS["ratings_alt"],
@@ -203,19 +272,6 @@ class Scraper:
 
     # ----- product description -----
     def description_details(self, soup: BeautifulSoup, title: str = "") -> str:
-        tag, attrs = SELECTORS["product_description"]
-        el = soup.find(tag, attrs=attrs)
-
-        if el:
-            text = " ".join(el.get_text(strip=True).split())
-            title_normalised = " ".join(title.split()).lower()
-            text_normalised = text.lower()
-            if text and text_normalised != title_normalised:
-                logger.debug("Description found via productDescription element")
-                return text
-            elif text:
-                logger.debug("Description found via feature-bullets")
-
         bullets_tag, bullets_attrs = SELECTORS["feature_bullets"]
         bullets = soup.find(bullets_tag, attrs=bullets_attrs)
         if bullets:
@@ -231,11 +287,22 @@ class Scraper:
                 )
                 return description
 
+        tag, attrs = SELECTORS["product_description"]
+        el = soup.find(tag, attrs=attrs)
+
+        if el:
+            text = " ".join(el.get_text(strip=True).split())
+            title_normalised = " ".join(title.split()).lower()
+            text_normalised = text.lower()
+            if text and text_normalised != title_normalised:
+                logger.debug("Description found via productDescription element")
+                return text
+
         logger.warning("Description not found")
         return "N/A"
 
     # ----- all variants of the product -----
-    def variants_details(self, soup: BeautifulSoup) -> Optional[list[dict]]:
+    def variants_details(self, soup: BeautifulSoup) -> Optional[List[dict]]:
         variants = []
 
         # ----- build a lookup from the a-state JSON (reliable fallback) -----
