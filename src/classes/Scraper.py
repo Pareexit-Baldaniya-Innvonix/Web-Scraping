@@ -71,12 +71,13 @@ class Scraper:
 
         # ----- fetch every field individually -----
         try:
+            title = self.title_details(soup)
             product = Product(
-                title=self.title_details(soup),
+                title=title,
                 price=self.price_details(soup),
                 ratings=self.ratings_details(soup),
                 reviews_count=self.reviews_count(soup),
-                description=self.description_details(soup),
+                description=self.description_details(soup, title),
                 variants=self.variants_details(soup),
             )
             logger.info(
@@ -202,15 +203,19 @@ class Scraper:
         return None
 
     # ----- product description -----
-    def description_details(self, soup: BeautifulSoup) -> str:
+    def description_details(self, soup: BeautifulSoup, title: str = "") -> str:
         tag, attrs = SELECTORS["product_description"]
-        for selector in [(tag, attrs), ("span", attrs)]:
-            el = soup.find(*selector)
-            if el:
-                text = " ".join(el.get_text(strip=True).split())
-                if text:
-                    logger.debug("Description found via productDescription element")
-                    return text
+        el = soup.find(tag, attrs=attrs)
+
+        if el:
+            text = " ".join(el.get_text(strip=True).split())
+            title_normalised = " ".join(title.split()).lower()
+            text_normalised = text.lower()
+            if text and text_normalised != title_normalised:
+                logger.debug("Description found via productDescription element")
+                return text
+            elif text:
+                logger.debug("Description found via feature-bullets")
 
         bullets_tag, bullets_attrs = SELECTORS["feature_bullets"]
         bullets = soup.find(bullets_tag, attrs=bullets_attrs)
