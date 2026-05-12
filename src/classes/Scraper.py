@@ -9,10 +9,10 @@ from urllib.parse import urlparse
 from typing import Optional, Union
 
 # ----- local import -----
-from config.constants import HEADERS, OUTPUT_DIR
-from config.selectors import SELECTORS
+from src.config.constants import HEADERS, OUTPUT_DIR
+from src.config.selectors import SELECTORS
 from .Product import Product
-from utils.logger import get_logger
+from src.utils.logger import get_logger
 
 logger = get_logger("SCRAPER")
 
