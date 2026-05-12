@@ -9,6 +9,8 @@ beautifulsoup4 = "*"
 pydantic = "*"
 pydantic-settings = "*"
 python-json-logger = "*"
+fastapi = "*"
+uvicorn = "*"
 
 [dev-packages]
 
