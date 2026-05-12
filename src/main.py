@@ -6,7 +6,6 @@ from fastapi.responses import JSONResponse, HTMLResponse
 # ----- local import -----
 from src.utils.logger import setup_logging, get_logger
 from src.classes.ScrapeFailReason import ScrapeFailReason
-from src.classes.ScrapeResult import ScrapeResult
 from src.classes.ScrapeRequest import ScrapeRequest
 from src.classes.Scraper import Scraper
 
