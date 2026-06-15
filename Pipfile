@@ -11,6 +11,8 @@ pydantic-settings = "*"
 python-json-logger = "*"
 fastapi = "*"
 uvicorn = "*"
+playwright = "*"
+playwright-stealth = "*"
 
 [dev-packages]
 
