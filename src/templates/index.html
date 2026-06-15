@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amazon Web Scraper</title>
+    <link rel="icon" href="/static/favicon.png" type="image/png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { 
+            background-color: #030712;
+            background-image: 
+                radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
+                radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%), 
+                radial-gradient(at 100% 0%, hsla(263,55%,52%,0.15) 0, transparent 40%);
+            color: #f8fafc; 
+        }
+
+        /* Glassmorphism Classes */
+        .glass-panel { 
+            background: rgba(15, 23, 42, 0.45); 
+            backdrop-filter: blur(24px) saturate(120%); 
+            -webkit-backdrop-filter: blur(24px) saturate(120%); 
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-input {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .glass-input:focus-within {
+            border-color: rgba(168, 85, 247, 0.4);
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.15), inset 0 2px 4px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        /* Ambient Glow Blobs */
+        .glow-blob {
+            filter: blur(80px);
+            opacity: 0.35;
+            mix-blend-mode: screen;
+            animation: float 12s ease-in-out infinite alternate;
+        }
+
+        /* Lasers rush inward and hit 100% scale at exactly 0.7 seconds */
+        @keyframes laserLeft {
+            0% { transform: translateY(-50%) scaleX(0); opacity: 0; }
+            15% { opacity: 1; }
+            46% { transform: translateY(-50%) scaleX(1); opacity: 1; }
+            47%, 100% { transform: translateY(-50%) scaleX(1); opacity: 0; }
+        }
+
+        @keyframes laserRight {
+            0% { transform: translateY(-50%) scaleX(0); opacity: 0; }
+            15% { opacity: 1; }
+            46% { transform: translateY(-50%) scaleX(1); opacity: 1; }
+            47%, 100% { transform: translateY(-50%) scaleX(1); opacity: 0; }
+        }
+
+        /* Core flash ignites at 0.47s right as the lasers collide */
+        @keyframes flashCore {
+            0%, 46% { width: 0px; height: 0px; opacity: 0; }
+            47% { width: 4px; height: 4px; opacity: 1; }
+            55% { width: 16px; height: 16px; opacity: 0.8; }
+            75%, 100% { width: 0px; height: 0px; opacity: 0; }
+        }
+
+        /* Shockwave rings blow outward from the center post-collision */
+        @keyframes shockwave {
+            0%, 46% { width: 0px; height: 0px; opacity: 0; }
+            47% { width: 2px; height: 2px; opacity: 1; transform: scale(1); }
+            70% { opacity: 0.6; }
+            90% { width: 80px; height: 80px; opacity: 0; transform: scale(1.1); }
+            100% { opacity: 0; }
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0px) scale(1); }
+            100% { transform: translateY(-20px) scale(1.1); }
+        }
+
+        /* Skeleton Screen Shimmer Animation */
+        @keyframes shimmer {
+            0% { opacity: 0.25; }
+            50% { opacity: 0.55; }
+            100% { opacity: 0.25; }
+        }
+        .animate-shimmer {
+            animation: shimmer 1.8s ease-in-out infinite;
+        }
+
+        /* Scrollbar styling */
+        .json-container::-webkit-scrollbar { width: 6px; height: 6px; }
+        .json-container::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.3); }
+        .json-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 9999px; }
+        .json-container::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+        
+        /* Vibrant Cyberpunk-ish JSON Highlighting */
+        .json-key { color: #f472b6; font-weight: 600; }     
+        .json-string { color: #2dd4bf; }                  
+        .json-number { color: #fbbf24; }                  
+        .json-boolean { color: #a855f7; }                 
+        .json-null { color: #64748b; font-style: italic; } 
+        
+        /* Interactive image link styles inside payload code block */
+        .json-img-link {
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            cursor: pointer;
+            transition: color 150ms ease;
+        }
+        .json-img-link:hover {
+            color: #38bdf8;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-x-hidden">
+
+    <div class="absolute top-1/4 left-1/4 w-80 h-80 bg-purple-600 rounded-full glow-blob"></div>
+    <div class="absolute bottom-1/3 right-1/4 w-[450px] h-[450px] bg-teal-500 rounded-full glow-blob" style="animation-delay: -4s;"></div>
+
+    <div class="w-full max-w-4xl glass-panel p-6 md:p-8 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] relative z-10 transition-all duration-300">
+        
+        <div class="flex items-center gap-4 mb-6 pb-5 border-b border-white/5">
+            <div class="bg-gradient-to-tr from-purple-600 to-indigo-600 p-3 rounded-xl shadow-lg shadow-purple-900/30 ring-1 ring-white/20">
+                <i class="fa-solid fa-spider text-white text-xl animate-pulse"></i>
+            </div>
+            <div>
+                <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-slate-400">
+                    Amazon Web Scraper
+                </h1>
+                <p class="text-xs md:text-sm text-slate-400 mt-0.5">Extract amazon product data, description, reviews, etc. in JSON format</p>
+            </div>
+        </div>
+
+        <div class="flex bg-slate-950/60 p-1 rounded-xl gap-1 mb-5 max-w-md border border-white/5">
+            <button onclick="setScrapeMode('product')" id="modeProductBtn" 
+                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow">
+                <i class="fa-solid fa-box-open mr-1.5"></i>Product Details
+            </button>
+            <button onclick="setScrapeMode('reviews')" id="modeReviewsBtn" 
+                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-comments mr-1.5"></i>Deep Reviews Scrape
+            </button>
+        </div>
+        
+        <div class="flex flex-col sm:flex-row gap-3 p-2 glass-input rounded-xl transition-all duration-300">
+            <div class="flex-1 flex items-center gap-3 px-3 py-2 sm:py-0">
+                <i class="fa-solid fa-link text-slate-400 text-sm"></i>
+                <input type="text" id="urlInput" oninput="syncUrlInput(this.value)"
+                       class="w-full bg-transparent border-none text-slate-200 placeholder-slate-500 text-sm focus:outline-none" 
+                       placeholder="Paste amazon.in product URL here...">
+            </div>
+            <button onclick="executeScrape()" id="scrapeBtn" 
+                    class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-semibold px-6 py-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.97] shadow-lg shadow-indigo-950/50 group whitespace-nowrap">
+                <span id="btnText">Extract Data</span>
+                <i class="fa-solid fa-arrow-right text-xs transition-transform group-hover:translate-x-1"></i>
+            </button>
+        </div>
+
+        <div id="reviewsNotice" class="hidden mt-3 p-3 bg-indigo-500/10 border border-indigo-500/20 backdrop-blur-md rounded-xl text-indigo-300 text-xs flex items-center gap-2.5">
+            <i class="fa-solid fa-circle-info text-indigo-400 text-sm"></i>
+            <span>Note: Deep review extraction runs browser automation tasks to paginate review sections. This may take longer to process.</span>
+        </div>
+
+        <div id="loader" class="hidden my-8 flex items-center justify-center w-full h-8 relative overflow-visible select-none">
+            <div class="absolute left-0 top-1/2 -translate-y-1/2 h-[3px] w-1/2 bg-gradient-to-r from-transparent via-purple-500 to-indigo-500 origin-left animate-[laserLeft_1.5s_infinite_ease-in]"></div>
+            <div class="absolute right-0 top-1/2 -translate-y-1/2 h-[3px] w-1/2 bg-gradient-to-l from-transparent via-purple-500 to-indigo-500 origin-right animate-[laserRight_1.5s_infinite_ease-in]"></div>
+            <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none">
+                <div class="absolute rounded-full border-2 border-teal-400 bg-teal-500/10 animate-[shockwave_1.5s_infinite_linear]"></div>
+                <div class="absolute rounded-full bg-white shadow-[0_0_20px_#2dd4bf,0_0_40px_#a855f7] animate-[flashCore_1.5s_infinite_linear]"></div>
+            </div>
+        </div>
+
+        <div id="skeletonContainer" class="hidden mt-5 border border-white/5 rounded-xl bg-slate-950/40 backdrop-blur-xl overflow-hidden shadow-2xl">
+            <div class="flex items-center justify-between px-5 py-4 bg-white/[0.01] border-b border-white/5">
+                <div class="flex items-center gap-3">
+                    <div class="text-xs font-mono font-bold uppercase tracking-wider bg-slate-900 px-2 py-1 rounded border border-white/5 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-notch animate-spin text-indigo-400 text-[10px]" id="skeletonIcon"></i>
+                        <span id="skeletonTitle" class="font-sans font-medium">Extracting...</span>
+                    </div>
+                </div>
+                <div class="h-6 w-20 bg-slate-900 rounded border border-white/5 animate-shimmer"></div>
+            </div>
+            
+            <div class="p-5 md:p-6 space-y-4 font-mono select-none pointer-events-none animate-shimmer">
+                <div class="h-3.5 bg-slate-900 rounded w-1/4 opacity-90"></div>
+                <div class="space-y-2.5 pl-4">
+                    <div class="h-3 bg-slate-900/70 rounded w-1/3"></div>
+                    <div class="h-3 bg-slate-900/70 rounded w-3/4"></div>
+                    <div class="h-3 bg-slate-900/70 rounded w-1/2"></div>
+                </div>
+                <div class="space-y-2.5 pl-8">
+                    <div class="h-3 bg-slate-900/50 rounded w-2/5"></div>
+                    <div class="h-3 bg-slate-900/50 rounded w-3/5"></div>
+                </div>
+                <div class="h-3.5 bg-slate-900 rounded w-1/5 opacity-90 pt-1"></div>
+            </div>
+        </div>
+
+        <div id="error" class="hidden mt-5 p-4 bg-red-500/10 border border-red-500/20 backdrop-blur-md rounded-xl text-red-300 text-sm flex items-start gap-3 shadow-lg shadow-red-950/20">
+            <i class="fa-solid fa-circle-exclamation mt-0.5 text-red-400"></i>
+            <span id="errorMsg"></span>
+        </div>
+
+        <div id="resultContainer" class="hidden mt-5 border border-white/5 rounded-xl bg-slate-950/60 backdrop-blur-xl overflow-hidden shadow-2xl transition-all duration-300">
+            <div class="flex flex-col sm:flex-row justify-between sm:items-center px-5 py-3 bg-white/[0.02] gap-3">
+                <div class="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider select-none">
+                    <span class="text-teal-400 font-mono text-base leading-none">{}</span>
+                    <span id="payloadTypeLabel">Product Object JSON</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="downloadCsvBtn" onclick="downloadReviewsCsv()" 
+                            class="hidden text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-3.5 py-2 rounded-md border border-emerald-500/20 transition duration-150 flex items-center gap-1.5 active:scale-[0.95] shadow-sm">
+                        <i class="fa-solid fa-file-csv"></i>
+                        <span>Download CSV</span>
+                    </button>
+                    
+                    <button onclick="copyToClipboard()" 
+                            class="text-xs bg-white/5 hover:bg-white/10 text-slate-300 px-3.5 py-2 rounded-md border border-white/5 transition duration-150 flex items-center gap-1.5 active:scale-[0.95] shadow-sm">
+                        <i id="copyIcon" class="fa-regular fa-copy"></i>
+                        <span id="copyText">Copy Payload</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="h-[1px] w-full bg-white/5"></div>
+            <pre id="output" class="json-container text-xs md:text-[14px] font-mono leading-relaxed max-h-[500px] overflow-auto p-5 md:p-6 text-slate-300 whitespace-pre-wrap [word-break:break-word]"></pre>
+        </div>
+
+    </div>
+
+    <div id="imageModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md opacity-0 transition-opacity duration-300" onclick="closeImageModal()">
+        <div class="relative max-w-3xl w-full glass-panel rounded-2xl overflow-hidden shadow-2xl transform scale-95 transition-transform duration-300" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center px-5 py-3 border-b border-white/5 bg-slate-900/60">
+                <span class="text-xs font-mono text-slate-400 truncate max-w-xs md:max-w-md" id="modalImageTitle">Media Asset Preview</span>
+                <button onclick="closeImageModal()" class="text-slate-400 hover:text-white transition p-1 text-sm">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="p-6 flex items-center justify-center bg-slate-950/40 min-h-[250px] max-h-[70vh]">
+                <img id="modalImageTarget" src="" alt="Amazon Media Element" class="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md border border-white/5 hidden" onload="this.classList.remove('hidden'); document.getElementById('modalImageSpinner').classList.add('hidden');">
+                <div id="modalImageSpinner" class="flex flex-col items-center gap-2.5 text-slate-400 text-xs font-mono">
+                    <i class="fa-solid fa-circle-notch animate-spin text-purple-400 text-[10px]"></i>
+                    <span>Loading Resource Asset...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ----- Tab-specific Caches -----
+        let caches = {
+            product: { currentPayload: null, scrapedRawData: null, isScraping: false },
+            reviews: { currentPayload: null, scrapedRawData: null, isScraping: false }
+        };
+        let globalSharedUrl = ""; // Global reference variable to sync both modes
+        let activeMode = 'product'; 
+
+        // Keeps URL synced globally as the user types
+        function syncUrlInput(val) {
+            globalSharedUrl = val.trim();
+        }
+
+        function setScrapeMode(mode) {
+            if (mode === activeMode) return;
+            
+            activeMode = mode;
+
+            const modeProductBtn = document.getElementById('modeProductBtn');
+            const modeReviewsBtn = document.getElementById('modeReviewsBtn');
+            const btnText = document.getElementById('btnText');
+            const reviewsNotice = document.getElementById('reviewsNotice');
+
+            const resultContainer = document.getElementById('resultContainer');
+            const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+            const errorContainer = document.getElementById('error');
+            const payloadTypeLabel = document.getElementById('payloadTypeLabel');
+            const loader = document.getElementById('loader');
+            const skeletonContainer = document.getElementById('skeletonContainer');
+            const btn = document.getElementById('scrapeBtn');
+            const urlInput = document.getElementById('urlInput');
+
+            if (errorContainer) errorContainer.classList.add('hidden');
+
+            if (mode === 'product') {
+                modeProductBtn.className = "flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow";
+                modeReviewsBtn.className = "flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200";
+                btnText.textContent = "Extract Data";
+                reviewsNotice.classList.add('hidden');
+                payloadTypeLabel.textContent = 'Product Object JSON';
+            } else {
+                modeReviewsBtn.className = "flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow";
+                modeProductBtn.className = "flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200";
+                btnText.textContent = "Scrape Reviews";
+                
+                if (!caches.reviews.isScraping && !caches.reviews.currentPayload) {
+                    reviewsNotice.classList.remove('hidden');
+                } else {
+                    reviewsNotice.classList.add('hidden');
+                }
+                payloadTypeLabel.textContent = 'Reviews Extraction JSON';
+            }
+
+            // Always display the same globally shared string across fields
+            urlInput.value = globalSharedUrl;
+
+            // Reflect layout state of the incoming context tab
+            if (caches[mode].isScraping) {
+                btn.disabled = true;
+                btn.classList.add('opacity-50', 'cursor-not-allowed');
+                loader.classList.remove('hidden');
+                setupSkeletonText(mode);
+                skeletonContainer.classList.remove('hidden');
+                resultContainer.classList.add('hidden');
+                downloadCsvBtn.classList.add('hidden');
+            } else {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                loader.classList.add('hidden');
+                skeletonContainer.classList.add('hidden');
+                
+                if (caches[mode].currentPayload) {
+                    document.getElementById('output').innerHTML = syntaxHighlightJson(caches[mode].currentPayload);
+                    resultContainer.classList.remove('hidden');
+                    
+                    if (mode === 'reviews' && caches.reviews.scrapedRawData?.reviews?.length > 0) {
+                        downloadCsvBtn.classList.remove('hidden');
+                    } else {
+                        downloadCsvBtn.classList.add('hidden');
+                    }
+                    resetCopyButtonState();
+                } else {
+                    resultContainer.classList.add('hidden');
+                    downloadCsvBtn.classList.add('hidden');
+                }
+            }
+        }
+
+        function setupSkeletonText(mode) {
+            const skeletonTitle = document.getElementById('skeletonTitle');
+            const skeletonIcon = document.getElementById('skeletonIcon');
+            if (mode === 'product') {
+                skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-purple-400 text-[10px]";
+                skeletonTitle.textContent = "Extracting Product Object JSON...";
+                skeletonTitle.className = "font-sans font-medium text-purple-400";
+            } else {
+                skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-indigo-400 text-[10px]";
+                skeletonTitle.textContent = "Scraping Pages & Compiling Reviews Array JSON...";
+                skeletonTitle.className = "font-sans font-medium text-indigo-400";
+            }
+        }
+
+        function syntaxHighlightJson(jsonStr) {
+            jsonStr = jsonStr.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+            jsonStr = jsonStr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            return jsonStr.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g, function (match) {
+                let cls = 'json-number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'json-key';
+                    } else {
+                        cls = 'json-string';
+                        if (/"https:\/\/m\.media-amazon\.com\/images\/I\/[^"]+\.(jpg|jpeg|png|gif)"/i.test(match)) {
+                            let cleanUrl = match.slice(1, -1);
+                            return '"' + `<span class="${cls} json-img-link" onclick="openImageModal('${cleanUrl}')">${cleanUrl}</span>` + '"';
+                        }
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'json-boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'json-null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            });
+        }
+
+        // ----- Popup Modal Window Handling Engine -----
+        function openImageModal(imgUrl) {
+            const modal = document.getElementById('imageModal');
+            const targetImg = document.getElementById('modalImageTarget');
+            const spinner = document.getElementById('modalImageSpinner');
+            const titleLabel = document.getElementById('modalImageTitle');
+
+            targetImg.classList.add('hidden');
+            spinner.classList.remove('hidden');
+            targetImg.src = imgUrl;
+            
+            try {
+                let filenameMatch = imgUrl.match(/\/images\/I\/([^\.]+)/);
+                titleLabel.textContent = filenameMatch ? `Asset Token: ${filenameMatch[1]}` : "Media Resource Component";
+            } catch (err) {
+                titleLabel.textContent = "Media Resource Component";
+            }
+
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('.relative').classList.remove('scale-95');
+            }, 10);
+            document.body.style.overflow = 'hidden'; 
+        }
+
+        function closeImageModal() {
+            const modal = document.getElementById('imageModal');
+            if (!modal || modal.classList.contains('hidden')) return;
+
+            modal.classList.add('opacity-0');
+            modal.querySelector('.relative').classList.add('scale-95');
+            
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('modalImageTarget').src = ""; 
+                document.body.style.overflow = '';
+            }, 300);
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === "Escape") {
+                closeImageModal();
+            }
+        });
+
+        async function executeScrape() {
+            const currentWorkingMode = activeMode; 
+            const btn = document.getElementById('scrapeBtn');
+            const loader = document.getElementById('loader');
+            const errorContainer = document.getElementById('error');
+            const errorMsg = document.getElementById('errorMsg');
+            const resultContainer = document.getElementById('resultContainer');
+            const skeletonContainer = document.getElementById('skeletonContainer');
+
+            if (!globalSharedUrl) {
+                errorMsg.textContent = "Please provide a valid Amazon URL before extracting data.";
+                errorContainer.classList.remove('hidden');
+                setTimeout(() => { errorContainer.classList.add('hidden'); }, 3000);
+                return;
+            }
+
+            caches[currentWorkingMode].isScraping = true;
+            caches[currentWorkingMode].currentPayload = null;
+            caches[currentWorkingMode].scrapedRawData = null;
+
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+            loader.classList.remove('hidden');
+            errorContainer.classList.add('hidden');
+            
+            document.getElementById('reviewsNotice').classList.add('hidden');
+            resultContainer.classList.add('hidden');
+
+            setupSkeletonText(currentWorkingMode);
+            skeletonContainer.classList.remove('hidden');
+
+            const targetEndpoint = currentWorkingMode === 'product' ? '/api/scrape' : '/api/scrape/reviews';
+
+            try {
+                const response = await fetch(targetEndpoint, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ url: globalSharedUrl })
+                });
+
+                let data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.detail || `Engine execution failed: Status ${response.status}`);
+                }
+
+                caches[currentWorkingMode].scrapedRawData = data; 
+                let rawPayload = JSON.stringify(data, null, 4);
+                caches[currentWorkingMode].currentPayload = rawPayload.replace(/("rating(?:s)?":\s*)(\d+)\b(?!\.)/g, "$1$2.0");
+
+            } catch (err) {
+                if (activeMode === currentWorkingMode) {
+                    errorMsg.textContent = err.message;
+                    errorContainer.classList.remove('hidden');
+                }
+            } finally {
+                caches[currentWorkingMode].isScraping = false;
+
+                if (activeMode === currentWorkingMode) {
+                    btn.disabled = false;
+                    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+                    loader.classList.add('hidden');
+                    skeletonContainer.classList.add('hidden');
+                    
+                    if (activeMode === 'reviews' && !caches.reviews.currentPayload) {
+                        document.getElementById('reviewsNotice').classList.remove('hidden');
+                    }
+
+                    const downloadCsvBtn = document.getElementById('downloadCsvBtn');
+                    if (caches[activeMode].currentPayload) {
+                        document.getElementById('output').innerHTML = syntaxHighlightJson(caches[activeMode].currentPayload);
+                        resultContainer.classList.remove('hidden');
+                        if (activeMode === 'reviews' && caches.reviews.scrapedRawData?.reviews?.length > 0) {
+                            downloadCsvBtn.classList.remove('hidden');
+                        }
+                    }
+                    resetCopyButtonState();
+                }
+            }
+        }
+
+        function formatHelpfulVotes(rawText) {
+            if (!rawText) return "0 people found this helpful";
+            let normalized = String(rawText).trim().toLowerCase();
+            let match = normalized.match(/(\d+)/);
+            if (match) {
+                let count = parseInt(match[1], 10);
+                if (count === 1) return "1 person found this helpful";
+                return `${count} people found this helpful`;
+            }
+            if (normalized.includes("one")) return "1 person found this helpful";
+            return "0 people found this helpful";
+        }
+
+        function downloadReviewsCsv() {
+            const reviewsData = caches.reviews.scrapedRawData;
+            if (!reviewsData || !reviewsData.reviews || reviewsData.reviews.length === 0) {
+                return;
+            }
+
+            const reviews = reviewsData.reviews;
+            const headers = ["Review Number", "Reviewer Name", "Review Location", "Review Date", "Review Title", "Rating (Float)", "Review Body", "Helpful Votes"];
+            const csvRows = [headers.join(",")];
+
+            for (const item of reviews) {
+                const helpfulText = formatHelpfulVotes(item.review_helpful);
+                const values = [
+                    item.review_number || "",
+                    escapeCsvCell(item.reviewer_name),
+                    escapeCsvCell(item.review_location),
+                    escapeCsvCell(item.review_date),
+                    escapeCsvCell(item.review_title),
+                    item.rating !== null && item.rating !== undefined ? item.rating : "",
+                    escapeCsvCell(item.review_body),
+                    escapeCsvCell(helpfulText)
+                ];
+                csvRows.push(values.join(","));
+            }
+
+            const csvContent = "\uFEFF" + csvRows.join("\n"); 
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            let filename = "amazon_reviews.csv";
+            try {
+                const asinMatch = globalSharedUrl.match(/(?:dp|gp\/product|product-reviews)\/([A-Z0-9]{10})/i);
+                if (asinMatch && asinMatch[1]) {
+                    filename = `reviews_${asinMatch[1].toUpperCase()}.csv`;
+                }
+            } catch (e) {
+                console.error("Couldn't process ASIN title stamp pattern", e);
+            }
+
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function escapeCsvCell(val) {
+            if (val === null || val === undefined) return '""';
+            let str = String(val).trim();
+            if (str.includes('"') || str.includes(',') || str.includes('\n') || str.includes('\r')) {
+                str = '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        }
+
+        async function copyToClipboard() {
+            const currentPayload = caches[activeMode].currentPayload;
+            if (!currentPayload) return;
+            const copyIcon = document.getElementById('copyIcon');
+            const copyText = document.getElementById('copyText');
+            try {
+                await navigator.clipboard.writeText(currentPayload);
+                copyIcon.className = "fa-solid fa-check text-teal-400";
+                copyText.textContent = "Copied!";
+                copyText.classList.add("text-teal-400");
+                setTimeout(resetCopyButtonState, 2500);
+            } catch (err) {
+                console.error("Failed to copy system payload to clipboard: ", err);
+            }
+        }
+
+        function resetCopyButtonState() {
+            const copyIcon = document.getElementById('copyIcon');
+            const copyText = document.getElementById('copyText');
+            if (copyIcon && copyText) {
+                copyIcon.className = "fa-regular fa-copy";
+                copyText.textContent = "Copy Payload";
+                copyText.classList.remove("text-teal-400");
+            }
+        }
+    </script>
+</body>
+</html>
