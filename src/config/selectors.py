@@ -1,8 +1,9 @@
-from typing import Dict, Tuple
-
-SELECTORS: Dict[str, Tuple[str, dict]] = {
+SELECTORS = {
     # ----- product title -----
     "title": ("span", {"id": "productTitle"}),
+    
+    # ----- image -----
+    "images": ("img", {"alt": "Product Image"}),
     
     # ----- price -----
     "price_whole": ("span", {"class": "a-price-whole"}),
@@ -15,6 +16,13 @@ SELECTORS: Dict[str, Tuple[str, dict]] = {
     
     # ----- reviews -----
     "reviews_text": ("span", {"id": "acrCustomerReviewText"}),
+    "review_container": ("div", {"data-hook": "review"}),
+    "reviewer": ("span", {"class": "a-profile-name"}),
+    "review_rating": ("i", {"data-hook": "review-star-rating"}),
+    "review_title": ("h5", {"data-hook": "reviewTitle"}),
+    "review_date": ("span", {"data-hook": "review-date"}),
+    "review_body": ("div", {"data-hook": "reviewRichContentContainer"}),
+    "review_helpful": ("span", {"data-hook": "helpful-vote-statement"}),
     
     # ----- description -----
     "product_description": ("div", {"id": "productDescription"}),
