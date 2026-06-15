@@ -1,5 +1,9 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
 *.py[codz]
 *$py.class
 
@@ -220,3 +224,12 @@ __marimo__/
 # Application Logs and Data
 logs/
 output/
+amazon_user_session
+amazon_user_session/
+
+# IDEs and Editors
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
