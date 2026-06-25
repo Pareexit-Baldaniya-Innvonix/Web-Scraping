@@ -1,3 +1,6 @@
+# ----- library import -----
+from typing import Dict
+
 HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -14,12 +17,48 @@ HEADERS = {
     "Sec-Fetch-Site": "none",
 }
 
-COOKIES = {
-    "session-id": "521-1182317-1959339",
-    "ubid-main": "521-0304607-9496606",
-    "x-main": "kshSPnmv0jkvRckRj0EBmI?tKlodibpKCquuBCwCcfQ0h?zJQe9qK8FtL5rdOGEK",
-    "at-main": "Atza|gQBe4v5sAwEBAFMvSV13njU0ldHW9SFTTPw1MTQh4pkiKvoK68E7ltMa02Nk8chkb2uBZiVhg-eBFXoW_FMdD8vWTvyVl5OCJ9_VioJEuwksiBfaLlw_mKf1G0VDYyLpKWM5V5pKeEHWCK0nChtHtZp5tDyCmWrGNWHZTqLxNIJExGsBUuxIHUXoemKixXTSyfywhwSchF-8nNcJC5IZnoSyrqVVamFG24oNIPWEJW9MEk0cSuNU5_BNUVFqqH4_iezX3AJA7ZXu2RYn6g5DQJMKsy29Yf2yxZ99NT11JKqofpoXqB_TV3Cv_lmM8cT9Nvlo0ZXijTFpA7PIBVq_xzrz4Z4YaCVO0PoiMdV_X-c",
-}
-
-OUTPUT_DIR = "output"
 LOG_DIR = "logs"
+OUTPUT_DIR = "output"
+SEARCH_OUTPUT_DIR = "output/searches"
+REVIEWS_OUTPUT_DIR = "output/reviews"
+
+# ----- review scraper constants -----
+SESSION_DIR = "./amazon_user_session"
+PAGE_DELAY = 1.2
+SCROLL_DELAY = 0.5
+CAPTCHA_WAIT = 3
+HEADLESS = False
+NEXT_PAGE_SELECTORS = [
+    "li.a-last a",
+    "ul.a-pagination li.a-last a",
+    "a:has-text('Next page')",
+    "a:has-text('Next >')",
+    "a:has-text('More reviews')",
+    "[data-hook='show-more-button']",
+]
+
+# ----- search scraper constants -----
+SEARCH_NEXT_PAGE_SELECTORS = [
+    "a.s-pagination-next",
+    "span.s-pagination-strip a.s-pagination-next",
+    "ul.a-pagination li.a-last a",
+    "li.a-last a",
+    "a[aria-label='Go to next page']",
+    "span.s-pagination-strip a:has-text('Next')",
+    "ul.a-pagination a:has-text('Next')",
+]
+
+MONTH_MAP: Dict[str, int] = {
+    "jan": 1,
+    "feb": 2,
+    "mar": 3,
+    "apr": 4,
+    "may": 5,
+    "jun": 6,
+    "jul": 7,
+    "aug": 8,
+    "sep": 9,
+    "oct": 10,
+    "nov": 11,
+    "dec": 12,
+}
