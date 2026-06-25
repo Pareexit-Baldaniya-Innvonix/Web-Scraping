@@ -8,13 +8,18 @@ A Python-based web scraper that extracts product details from Amazon India (`ama
 
 ```
 WEB-SCRAPING/
-├── amazon_user_session/         # Persistent Playwright browser session (auto-generated)
+├── amazon_user_session/         # Persistent Playwright browser sessions (auto-generated)
+│   ├── reviews_{ASIN}/          # Per-ASIN session for review scraping
+│   └── search_{query_slug}/     # Per-query session for catalog search
 ├── logs/
 │   └── scraper.log              # Log file output (auto-generated)
 ├── output/
 │   ├── source.html              # Raw HTML response saved for debugging (auto-generated)
-│   ├── reviews_{ASIN}.csv       # Paginated reviews exported as CSV (auto-generated)
-│   └── reviews_{ASIN}.json      # Paginated reviews exported as JSON (auto-generated)
+│   ├── reviews/
+│   │   ├── reviews_{ASIN}.csv   # Paginated reviews exported as CSV (auto-generated)
+│   │   └── reviews_{ASIN}.json  # Paginated reviews exported as JSON (auto-generated)
+│   └── searches/
+│       └── search_{query}.json  # Search results exported as JSON (auto-generated)
 ├── src/
 │   ├── classes/
 │   │   ├── Product.py           # Pydantic product model
@@ -23,6 +28,7 @@ WEB-SCRAPING/
 │   │   ├── ScrapeFailReason.py  # Enum for scrape failure categories
 │   │   ├── ScrapeRequest.py     # Pydantic request body model
 │   │   ├── ScrapeResult.py      # Pydantic result wrapper model
+│   │   ├── SearchRequest.py     # Pydantic search request body model
 │   │   └── Settings.py          # Environment-based settings (pydantic-settings)
 │   ├── config/
 │   │   ├── constants.py         # HTTP headers, cookies & directory constants
@@ -57,15 +63,18 @@ WEB-SCRAPING/
   - **Description** (feature bullet points preferred; falls back to product description paragraph)
   - **Variants** (Color, Size, Style, etc.) — multi-strategy extraction with `a-state` JSON fallback
   - **Reviews** (on-page reviews from the product listing, captured inline during product scrape)
-- **Deep review scraper** powered by Playwright — paginates through all review pages, detects CAPTCHAs and waits for manual resolution, deduplicates reviews across pages, and saves results to `output/reviews_{ASIN}.csv` and `output/reviews_{ASIN}.json`
-- Persistent Playwright browser session stored in `amazon_user_session/` to preserve login cookies across runs
+- **Catalog search** powered by Playwright — searches Amazon by keyword, paginates up to **20 pages**, deduplicates results by ASIN, and saves output to `output/searches/search_{query}.json`. Each search result includes product title, price, direct product link, and estimated delivery days.
+- **Deep review scraper** powered by Playwright — paginates through review pages up to **10 pages (~100 reviews per product)**, detects CAPTCHAs and waits for manual resolution, deduplicates reviews across pages, and saves results to `output/reviews/reviews_{ASIN}.csv` and `output/reviews/reviews_{ASIN}.json`
+- **Automatic Amazon sign-in** — if credentials are provided via `.env`, the scraper detects login/OTP pages and handles authentication automatically before resuming scraping. Supports both email+password and password-only flows, and pauses for OTP/MFA resolution if required.
+- Persistent, isolated Playwright browser sessions stored per ASIN (`amazon_user_session/reviews_{ASIN}/`) and per search query (`amazon_user_session/search_{slug}/`) to preserve login cookies across runs without cross-contamination.
+- **Atomic search file writes** — search progress is first written to a `.tmp` file and then atomically replaced, preventing partial or corrupt output on interruption.
 - Saves raw HTML response for debugging (`output/source.html`)
 - Environment-aware logging — JSON logs in production, human-readable standard format in development
 - Named loggers per module for clean, traceable log output
 - REST API with FastAPI — interactive Swagger docs available at `/docs`
 - **Built-in web dashboard** at `/`:
-  - Glassmorphism dark UI (TailwindCSS)
-  - Two scrape modes toggled from the UI: **Product Details** and **Deep Reviews Scrape**
+  - Glassmorphism dark UI (TailwindCSS + Font Awesome icons)
+  - Three scrape modes toggled from the UI: **Product Details**, **Catalog Search**, and **Deep Reviews Scrape**
   - Animated laser-beam loading indicator and skeleton screen while scraping
   - Syntax-highlighted JSON output (color-coded keys, strings, numbers, booleans)
   - Clickable image URLs open in a full image preview modal
@@ -89,7 +98,7 @@ WEB-SCRAPING/
 | `python-json-logger` | JSON log formatter for production |
 | `fastapi` | REST API framework |
 | `uvicorn` | ASGI server to run FastAPI |
-| `playwright` | Browser automation for deep review pagination |
+| `playwright` | Browser automation for deep review pagination and catalog search |
 | `playwright-stealth` | Anti-bot stealth patches applied to Playwright pages |
 
 ---
@@ -116,7 +125,7 @@ This reads from `Pipfile` and creates an isolated virtual environment automatica
 pipenv run playwright install chromium
 ```
 
-This downloads the Chromium binary used by the deep reviews scraper.
+This downloads the Chromium binary used by the deep reviews scraper and catalog search.
 
 ### 4. Configure environment variables
 
@@ -129,16 +138,24 @@ cp example.env .env
 `.env` example:
 
 ```env
-ENV=development
+ENV=production
 LOG_LEVEL=DEBUG
+AMAZON_EMAIL=your@email.com
+AMAZON_PASSWORD=yourpassword
+THRESHOLD_LIMIT=set_number_limit
 ```
 
-| Variable | Default | Options |
+| Variable | Default | Options / Notes |
 |---|---|---|
 | `ENV` | `development` | `development`, `production` |
 | `LOG_LEVEL` | `DEBUG` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
+| `AMAZON_EMAIL` | *(empty)* | Your Amazon India account email — used for auto sign-in |
+| `AMAZON_PASSWORD` | *(empty)* | Your Amazon India account password — used for auto sign-in |
+| `THRESHOLD_LIMIT` | `2000` | Maximum number of reviews or search products to collect before stopping |
 
 In `production`, logs are emitted as **JSON**. In `development`, logs use a human-readable **standard** format.
+
+> **Note:** `AMAZON_EMAIL` and `AMAZON_PASSWORD` are optional. If omitted, the scraper will still work for sessions that are already authenticated. If a login page is detected and no credentials are provided, the scraper logs a warning and continues — but session-gated content may not be accessible.
 
 ---
 
@@ -160,15 +177,15 @@ Open `http://127.0.0.1:8000` in your browser to use the **web dashboard UI**.
 
 ## 🖥️ Web Dashboard
 
-Navigate to `http://127.0.0.1:8000` in your browser. The dashboard provides:
+Navigate to `http://127.0.0.1:8000` in your browser. The dashboard provides three modes toggled from the top tab bar:
 
-- A URL input field shared across both scrape modes
-- **Product Details** tab — calls `/api/scrape` and displays the full product JSON
-- **Deep Reviews Scrape** tab — calls `/api/scrape/reviews`, launches a visible Chromium browser on the server to paginate review pages, and returns all collected reviews as JSON. A **Download CSV** button appears once results are ready.
+- **Product Details** tab — calls `/api/scrape` with a product URL and displays the full product JSON including title, images, price, ratings, description, variants, and on-page reviews.
+- **Catalog Search** tab — calls `/api/search` with a keyword query, launches a visible Chromium browser on the server to paginate up to **20 search result pages**, and returns all collected products as JSON. Each result includes the product title, price, Amazon product link, and estimated delivery duration in days.
+- **Deep Reviews Scrape** tab — calls `/api/scrape/reviews` with a product URL, launches a visible Chromium browser on the server to paginate up to **10 review pages (~100 reviews)**, and returns all collected reviews as JSON. A **Download CSV** button appears once results are ready.
 - Syntax-highlighted JSON output with clickable image URLs (opens a preview modal)
 - A **Copy Payload** button to copy the raw JSON to clipboard
 
-> **Note:** The deep review scraper opens a real browser window on the machine running the server. If a CAPTCHA is encountered, the browser pauses for 25 seconds to allow manual resolution before continuing.
+> **Note:** The deep review scraper and catalog search both open a real browser window on the machine running the server. If a CAPTCHA is encountered, the browser pauses for 25 seconds to allow manual resolution before continuing. If Amazon redirects to a login page and credentials are configured in `.env`, sign-in is handled automatically.
 
 ---
 
@@ -240,9 +257,53 @@ Scrapes product details from a given Amazon India product URL using `requests` +
 
 ---
 
+### `POST /api/search`
+
+Launches a Playwright-controlled Chromium browser to search Amazon India by keyword and paginate through search result pages. Scraping stops after **20 pages** or when the total product count reaches the configured `THRESHOLD_LIMIT` — whichever comes first. Results are saved to `output/searches/search_{query}.json` on the server.
+
+**Request Body (JSON):**
+```json
+{
+    "query": "watermelon seeds"
+}
+```
+
+**Success Response — `200 OK`:**
+```json
+{
+    "products": [
+        {
+            "title": "True Elements Watermelon Seeds 250g - High in Protein | Raw Watermelon Seeds for Eating",
+            "price": 319.0,
+            "link": "https://www.amazon.in/dp/B01MEHGSRK/",
+            "delivery_duration_days": 2
+        },
+        {
+            "title": "Amazon Brand - Vedaka Raw Watermelon Seeds 500G",
+            "price": 549.0,
+            "link": "https://www.amazon.in/dp/B0D1BNTCXM/",
+            "delivery_duration_days": null
+        }
+    ]
+}
+```
+
+**Search Result Fields:**
+
+| Field | Type | Description |
+|---|---|---|
+| `title` | `string` | Product title as shown on the search result card |
+| `price` | `float \| null` | Listed price in INR; `null` if not displayed on the card |
+| `link` | `string` | Direct Amazon product URL (`https://www.amazon.in/dp/{ASIN}/`) |
+| `delivery_duration_days` | `int \| null` | Estimated days until delivery, calculated from the delivery date shown on the card; `null` if not available |
+
+> Products are deduplicated by ASIN across all pages. Results are also progressively saved to disk after each page using atomic writes, so partial results are preserved even if the scraper is interrupted.
+
+---
+
 ### `POST /api/scrape/reviews`
 
-Launches a Playwright-controlled Chromium browser to paginate through all review pages for the given product, collecting every review until no further pagination is found. Reviews are also saved to `output/reviews_{ASIN}.csv` and `output/reviews_{ASIN}.json` on the server.
+Launches a Playwright-controlled Chromium browser to paginate through all review pages for the given product, collecting reviews up to **10 pages (~100 reviews)**. Reviews are also saved to `output/reviews/reviews_{ASIN}.csv` and `output/reviews/reviews_{ASIN}.json` on the server.
 
 **Request Body (JSON):**
 ```json
@@ -255,7 +316,7 @@ Launches a Playwright-controlled Chromium browser to paginate through all review
 ```json
 {
     "asin": "B0GL8FNY5G",
-    "reviews_count": 142,
+    "reviews_count": 100,
     "reviews": [
         {
             "review_number": 1,
@@ -271,7 +332,7 @@ Launches a Playwright-controlled Chromium browser to paginate through all review
 }
 ```
 
-> This endpoint runs synchronously in a background thread. Expect longer response times depending on the total number of review pages.
+> This endpoint runs synchronously in a background thread. Expect longer response times depending on the total number of review pages. Scraping caps at 10 pages, yielding approximately 100 reviews per run (Amazon shows ~10 reviews per page).
 
 ---
 
@@ -324,6 +385,20 @@ ftp://www.amazon.in/dp/B0DSKL9MQ8      # Invalid scheme (must be http or https)
 
 ---
 
+## ⚙️ Scraping Limits
+
+| Feature | Page Limit | Item Limit |
+|---|---|---|
+| Deep Review Scraper | 10 pages | ~100 reviews |
+| Catalog Search | 20 pages | Up to 20 pages products |
+
+- Amazon displays approximately **10 reviews per page**, so 10 pages yields roughly **100 reviews** per run.
+- The catalog search paginates through up to **20 result pages**. Each page typically contains 15–20 products, yielding approximately 300–400 unique products per search.
+- Both scrapers also respect the `THRESHOLD_LIMIT` environment variable (default: `2000`) as a hard upper bound on total items collected — pagination stops whichever limit is hit first.
+- Products in search results are deduplicated by ASIN; reviews are deduplicated by a hash of `reviewer_name + date + title + rating`.
+
+---
+
 ## 🗂️ How It Works
 
 ### Product Scrape (`/api/scrape`)
@@ -341,16 +416,40 @@ ftp://www.amazon.in/dp/B0DSKL9MQ8      # Invalid scheme (must be http or https)
    - **Reviews:** collects all `[data-hook="review"]` blocks from the product page.
 6. **Output** — `Product` is a Pydantic model; `.to_dict()` serializes it and FastAPI returns it as a JSON response. Raw HTML is saved to `output/source.html` for debugging.
 
+### Catalog Search (`/api/search`)
+
+1. The search query is URL-encoded and navigated to `https://www.amazon.in/s?k={query}`.
+2. Playwright launches a persistent Chromium context from a per-query session directory (`amazon_user_session/search_{slug}/`) with stealth patches applied.
+3. Each page is scrolled to trigger lazy-loaded product cards, then parsed with `BeautifulSoup`.
+4. Each result card is parsed for ASIN, title, price, product link, and estimated delivery days. Delivery days are calculated by parsing the delivery date text displayed on the card.
+5. Products are deduplicated by ASIN across all pages.
+6. After each page, progress is atomically written to `output/searches/search_{query}.json` (via a `.tmp` file swap) so partial results survive any interruption.
+7. Pagination continues by clicking the "Next" button until no further pages are found, 20 pages are reached, or the total product count hits the configured threshold.
+
 ### Deep Review Scrape (`/api/scrape/reviews`)
 
 1. The ASIN is extracted from the product URL via regex.
-2. Playwright launches a persistent Chromium context from `amazon_user_session/` (preserving session cookies across runs) with stealth patches applied.
+2. Playwright launches a persistent Chromium context from a per-ASIN session directory (`amazon_user_session/reviews_{ASIN}/`) with stealth patches applied.
 3. The browser navigates to `https://www.amazon.in/product-reviews/{ASIN}?reviewerType=all_reviews`.
-4. Each page is scrolled to trigger lazy-loaded content, then parsed with `BeautifulSoup`.
-5. If a CAPTCHA is detected in the page content, the scraper pauses for 25 seconds for manual resolution.
-6. Reviews are deduplicated using a hash of `reviewer_name + date + title + rating` to prevent duplicates across page reloads.
-7. After each page, the scraper looks for a pagination control (`li.a-last a`, `a:has-text('Next page')`, etc.). If found, it clicks through and repeats; otherwise it stops.
-8. All collected reviews are appended incrementally to `output/reviews_{ASIN}.csv` and `output/reviews_{ASIN}.json` and returned in the API response.
+4. If a login page is detected, the scraper automatically signs in using `AMAZON_EMAIL` and `AMAZON_PASSWORD` from `.env`. OTP/MFA pages trigger a configurable wait (`CAPTCHA_WAIT`) for manual resolution before continuing.
+5. Each page is scrolled to trigger lazy-loaded content, then parsed with `BeautifulSoup`.
+6. If a CAPTCHA is detected in the page content, the scraper pauses for 25 seconds for manual resolution.
+7. Reviews are deduplicated using a hash of `reviewer_name + date + title + rating` to prevent duplicates across page reloads.
+8. After each page, reviews are appended incrementally to `output/reviews/reviews_{ASIN}.csv` and `output/reviews/reviews_{ASIN}.json`.
+9. Pagination continues by clicking the next-page control until no further pages are found, **10 pages** are reached, or the threshold limit is hit.
+
+---
+
+## 🔑 Auto Sign-in
+
+When `AMAZON_EMAIL` and `AMAZON_PASSWORD` are set in `.env`, the scraper can automatically authenticate whenever Amazon redirects to a login page during Playwright-driven scraping (both review and catalog search sessions).
+
+The sign-in flow handles:
+- **Email + password** — fills email, clicks Continue, then fills password and submits
+- **Password-only** — detects a pre-filled email page and fills only the password
+- **OTP / MFA** — if redirected to an MFA verification page after login, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 3 seconds, configurable in `constants.py`) to allow manual OTP entry
+
+After a successful login, the scraper automatically navigates back to the original target URL and resumes scraping. Login state is persisted in the session directory so subsequent runs for the same ASIN or query will not need to re-authenticate.
 
 ---
 
@@ -374,11 +473,12 @@ logger = get_logger("MY_MODULE")
 | File | Description |
 |---|---|
 | `output/source.html` | Raw HTML fetched from Amazon, saved after each product scrape |
-| `output/reviews_{ASIN}.csv` | All paginated reviews for that ASIN in CSV format |
-| `output/reviews_{ASIN}.json` | All paginated reviews for that ASIN in JSON format |
+| `output/reviews/reviews_{ASIN}.csv` | All paginated reviews for that ASIN in CSV format |
+| `output/reviews/reviews_{ASIN}.json` | All paginated reviews for that ASIN in JSON format |
+| `output/searches/search_{query}.json` | All search result products for that query in JSON format |
 | `logs/scraper.log` | Persistent log file (appended on each run) |
 
-> **Note:** Product data is **not** written to disk — it is returned directly as the API response. Review files are overwritten on each new deep scrape for the same ASIN.
+> **Note:** Product data from `/api/scrape` is **not** written to disk — it is returned directly as the API response. Review and search files are overwritten on each new scrape for the same ASIN or query. Search files use atomic `.tmp` → final file swaps to prevent partial writes.
 
 ---
 
