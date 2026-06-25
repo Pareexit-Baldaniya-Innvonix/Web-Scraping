@@ -3,7 +3,7 @@ SELECTORS = {
     "title": ("span", {"id": "productTitle"}),
     
     # ----- image -----
-    "images": ("img", {"alt": "Product Image"}),
+    "images": ("div", {"id": "altImages"}),
     
     # ----- price -----
     "price_whole": ("span", {"class": "a-price-whole"}),
