@@ -133,24 +133,28 @@
                 <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-slate-400">
                     Amazon Web Scraper
                 </h1>
-                <p class="text-xs md:text-sm text-slate-400 mt-0.5">Extract amazon product data, description, reviews, etc. in JSON format</p>
+                <p class="text-xs md:text-sm text-slate-400 mt-0.5">Extract amazon product data, descriptions, search catalogs, and reviews in JSON format</p>
             </div>
         </div>
 
-        <div class="flex bg-slate-950/60 p-1 rounded-xl gap-1 mb-5 max-w-md border border-white/5">
+        <div class="flex bg-slate-950/60 p-1 rounded-xl gap-1 mb-5 max-w-xl border border-white/5">
             <button onclick="setScrapeMode('product')" id="modeProductBtn" 
-                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow">
+                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow">
                 <i class="fa-solid fa-box-open mr-1.5"></i>Product Details
             </button>
+            <button onclick="setScrapeMode('search')" id="modeSearchBtn" 
+                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200">
+                <i class="fa-solid fa-magnifying-glass mr-1.5"></i>Catalog Search
+            </button>
             <button onclick="setScrapeMode('reviews')" id="modeReviewsBtn" 
-                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200">
+                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200">
                 <i class="fa-solid fa-comments mr-1.5"></i>Deep Reviews Scrape
             </button>
         </div>
         
         <div class="flex flex-col sm:flex-row gap-3 p-2 glass-input rounded-xl transition-all duration-300">
             <div class="flex-1 flex items-center gap-3 px-3 py-2 sm:py-0">
-                <i class="fa-solid fa-link text-slate-400 text-sm"></i>
+                <i id="inputIcon" class="fa-solid fa-link text-slate-400 text-sm"></i>
                 <input type="text" id="urlInput" oninput="syncUrlInput(this.value)"
                        class="w-full bg-transparent border-none text-slate-200 placeholder-slate-500 text-sm focus:outline-none" 
                        placeholder="Paste amazon.in product URL here...">
@@ -256,12 +260,13 @@
         // ----- Tab-specific Caches -----
         let caches = {
             product: { currentPayload: null, scrapedRawData: null, isScraping: false },
+            search: { currentPayload: null, scrapedRawData: null, isScraping: false },
             reviews: { currentPayload: null, scrapedRawData: null, isScraping: false }
         };
-        let globalSharedUrl = ""; // Global reference variable to sync both modes
+        let globalSharedUrl = ""; // Global reference variable to sync all modes
         let activeMode = 'product'; 
 
-        // Keeps URL synced globally as the user types
+        // Keeps input synced globally as the user types
         function syncUrlInput(val) {
             globalSharedUrl = val.trim();
         }
@@ -272,6 +277,7 @@
             activeMode = mode;
 
             const modeProductBtn = document.getElementById('modeProductBtn');
+            const modeSearchBtn = document.getElementById('modeSearchBtn');
             const modeReviewsBtn = document.getElementById('modeReviewsBtn');
             const btnText = document.getElementById('btnText');
             const reviewsNotice = document.getElementById('reviewsNotice');
@@ -284,18 +290,34 @@
             const skeletonContainer = document.getElementById('skeletonContainer');
             const btn = document.getElementById('scrapeBtn');
             const urlInput = document.getElementById('urlInput');
+            const inputIcon = document.getElementById('inputIcon');
 
             if (errorContainer) errorContainer.classList.add('hidden');
 
+            // Reset active style states across tabs
+            const defaultTabStyle = "flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200";
+            const activeTabStyle = "flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow";
+            
+            modeProductBtn.className = defaultTabStyle;
+            modeSearchBtn.className = defaultTabStyle;
+            modeReviewsBtn.className = defaultTabStyle;
+
             if (mode === 'product') {
-                modeProductBtn.className = "flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow";
-                modeReviewsBtn.className = "flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200";
+                modeProductBtn.className = activeTabStyle;
                 btnText.textContent = "Extract Data";
                 reviewsNotice.classList.add('hidden');
                 payloadTypeLabel.textContent = 'Product Object JSON';
+                urlInput.placeholder = "Paste amazon.in product URL here...";
+                inputIcon.className = "fa-solid fa-link text-slate-400 text-sm";
+            } else if (mode === 'search') {
+                modeSearchBtn.className = activeTabStyle;
+                btnText.textContent = "Search Catalog";
+                reviewsNotice.classList.add('hidden');
+                payloadTypeLabel.textContent = 'Marketplace Search JSON';
+                urlInput.placeholder = "Enter product keywords (e.g., Wireless Headphones)...";
+                inputIcon.className = "fa-solid fa-magnifying-glass text-slate-400 text-sm";
             } else {
-                modeReviewsBtn.className = "flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow";
-                modeProductBtn.className = "flex-1 text-xs md:text-sm font-medium py-2.5 px-4 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200";
+                modeReviewsBtn.className = activeTabStyle;
                 btnText.textContent = "Scrape Reviews";
                 
                 if (!caches.reviews.isScraping && !caches.reviews.currentPayload) {
@@ -304,9 +326,11 @@
                     reviewsNotice.classList.add('hidden');
                 }
                 payloadTypeLabel.textContent = 'Reviews Extraction JSON';
+                urlInput.placeholder = "Paste amazon.in product URL here...";
+                inputIcon.className = "fa-solid fa-link text-slate-400 text-sm";
             }
 
-            // Always display the same globally shared string across fields
+            // Display the shared input string across views
             urlInput.value = globalSharedUrl;
 
             // Reflect layout state of the incoming context tab
@@ -348,6 +372,10 @@
                 skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-purple-400 text-[10px]";
                 skeletonTitle.textContent = "Extracting Product Object JSON...";
                 skeletonTitle.className = "font-sans font-medium text-purple-400";
+            } else if (mode === 'search') {
+                skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-teal-400 text-[10px]";
+                skeletonTitle.textContent = "Querying Marketplace Index & Extracting Products...";
+                skeletonTitle.className = "font-sans font-medium text-teal-400";
             } else {
                 skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-indigo-400 text-[10px]";
                 skeletonTitle.textContent = "Scraping Pages & Compiling Reviews Array JSON...";
@@ -435,7 +463,8 @@
             const skeletonContainer = document.getElementById('skeletonContainer');
 
             if (!globalSharedUrl) {
-                errorMsg.textContent = "Please provide a valid Amazon URL before extracting data.";
+                const term = currentWorkingMode === 'search' ? "search query" : "valid Amazon URL";
+                errorMsg.textContent = `Please provide a ${term} before extracting data.`;
                 errorContainer.classList.remove('hidden');
                 setTimeout(() => { errorContainer.classList.add('hidden'); }, 3000);
                 return;
@@ -456,13 +485,26 @@
             setupSkeletonText(currentWorkingMode);
             skeletonContainer.classList.remove('hidden');
 
-            const targetEndpoint = currentWorkingMode === 'product' ? '/api/scrape' : '/api/scrape/reviews';
+            // Select Target Endpoint & Request Formats
+            let targetEndpoint = '/api/scrape';
+            let payloadBody = {};
+
+            if (currentWorkingMode === 'product') {
+                targetEndpoint = '/api/scrape';
+                payloadBody = { url: globalSharedUrl };
+            } else if (currentWorkingMode === 'search') {
+                targetEndpoint = '/api/search';
+                payloadBody = { query: globalSharedUrl };
+            } else if (currentWorkingMode === 'reviews') {
+                targetEndpoint = '/api/scrape/reviews';
+                payloadBody = { url: globalSharedUrl };
+            }
 
             try {
                 const response = await fetch(targetEndpoint, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ url: globalSharedUrl })
+                    body: JSON.stringify(payloadBody)
                 });
 
                 let data = await response.json();
