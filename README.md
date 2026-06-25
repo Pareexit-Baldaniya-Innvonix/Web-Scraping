@@ -149,13 +149,15 @@ THRESHOLD_LIMIT=set_number_limit
 |---|---|---|
 | `ENV` | `development` | `development`, `production` |
 | `LOG_LEVEL` | `DEBUG` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
-| `AMAZON_EMAIL` | *(empty)* | Your Amazon India account email — used for auto sign-in |
-| `AMAZON_PASSWORD` | *(empty)* | Your Amazon India account password — used for auto sign-in |
+| `AMAZON_EMAIL` | *(empty)* | Amazon India account email — **must be an already signed-in account** (see note below) |
+| `AMAZON_PASSWORD` | *(empty)* | Amazon India account password — **must be an already signed-in account** (see note below) |
 | `THRESHOLD_LIMIT` | `2000` | Maximum number of reviews or search products to collect before stopping |
 
 In `production`, logs are emitted as **JSON**. In `development`, logs use a human-readable **standard** format.
 
 > **Note:** `AMAZON_EMAIL` and `AMAZON_PASSWORD` are optional. If omitted, the scraper will still work for sessions that are already authenticated. If a login page is detected and no credentials are provided, the scraper logs a warning and continues — but session-gated content may not be accessible.
+>
+> ⚠️ **Important — First-time accounts require manual setup:** Auto sign-in only works reliably with an account that has **previously been signed in** on this machine. If you use a brand-new or never-used email and password, Amazon will trigger a **mobile number verification step** (OTP sent to your registered phone) before allowing access. This step cannot be automated and must be completed manually in the browser window. Once you have completed the manual OTP verification at least once, the session is saved in `amazon_user_session/` and all future runs will sign in automatically without requiring OTP again.
 
 ---
 
@@ -444,10 +446,12 @@ ftp://www.amazon.in/dp/B0DSKL9MQ8      # Invalid scheme (must be http or https)
 
 When `AMAZON_EMAIL` and `AMAZON_PASSWORD` are set in `.env`, the scraper can automatically authenticate whenever Amazon redirects to a login page during Playwright-driven scraping (both review and catalog search sessions).
 
+> ⚠️ **Auto sign-in only works with an already signed-in account.** If the email and password belong to an account that has never been used on this machine before, Amazon will require **mobile number verification** — it sends an OTP to the registered phone number before granting access. This verification step is fully manual: you must enter the OTP in the visible browser window yourself. The scraper cannot automate this step. Once the OTP is entered and login is complete for the first time, the session is saved to `amazon_user_session/` and all subsequent runs will authenticate automatically without requiring OTP again.
+
 The sign-in flow handles:
 - **Email + password** — fills email, clicks Continue, then fills password and submits
 - **Password-only** — detects a pre-filled email page and fills only the password
-- **OTP / MFA** — if redirected to an MFA verification page after login, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 3 seconds, configurable in `constants.py`) to allow manual OTP entry
+- **OTP / MFA** — if redirected to an MFA or mobile verification page after login, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 3 seconds, configurable in `constants.py`) to allow manual OTP entry in the browser window
 
 After a successful login, the scraper automatically navigates back to the original target URL and resumes scraping. Login state is persisted in the session directory so subsequent runs for the same ASIN or query will not need to re-authenticate.
 
