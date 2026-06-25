@@ -1245,11 +1245,14 @@ class Scraper:
         )
         return products
 
-    # ----- synchronous single product scraping context -----
-    def scraping_data(self) -> ScrapeResult:
+    # ----- asynchronous single product scraping context -----
+    async def scraping_data(self) -> ScrapeResult:
         logger.info("Scraping started.")
         try:
-            response = self.session.get(self.url, timeout=15)
+            response = await asyncio.to_thread(
+                self.session.get, self.url, timeout=15
+            )
+            
             if response.status_code == 404:
                 return ScrapeResult(
                     success=False,
