@@ -7,10 +7,10 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # ----- local imports -----
-from src.classes.ScrapeFailReason import ScrapeFailReason
-from src.classes.ScrapeRequest import ScrapeRequest
 from src.classes.Scraper import Scraper
+from src.classes.ScrapeRequest import ScrapeRequest
 from src.classes.SearchRequest import SearchRequest
+from src.classes.ScrapeFailReason import ScrapeFailReason
 from src.utils.logger import get_logger, setup_logging
 
 # ----- path configurations -----
@@ -57,7 +57,7 @@ async def search_products(body: SearchRequest):
     t0 = time.perf_counter()
 
     try:
-        products = await scraper.scrape_search_playwright(q)
+        search_result = await scraper.run_search_playwright(q)
     except Exception as exc:
         logger.exception(
             "Playwright search operation encountered a critical failure: %s", str(exc)
@@ -68,14 +68,16 @@ async def search_products(body: SearchRequest):
         )
 
     elapsed = time.perf_counter() - t0
+    products_list = search_result.get("products", [])
+
     logger.info(
         "Total %d entries saved for [Product: %s] in %.2fs",
-        len(products),
+        len(products_list),
         q,
         elapsed,
     )
 
-    return JSONResponse(content={"products": products})
+    return JSONResponse(content=search_result)
 
 
 # ----- product scraping route -----
@@ -150,7 +152,7 @@ async def scrape_reviews(body: ScrapeRequest):
     t0 = time.perf_counter()
 
     try:
-        reviews = await scraper.scrape_reviews_playwright(url)
+        reviews = await scraper.run_reviews_playwright(url)
     except Exception as exc:
         logger.exception(
             "Playwright review scraper raised an unhandled exception: %s", str(exc)
