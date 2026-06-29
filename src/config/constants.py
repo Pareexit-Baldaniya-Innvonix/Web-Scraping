@@ -23,7 +23,7 @@ REVIEWS_OUTPUT_DIR = "output/reviews"
 
 # ----- review scraper constants -----
 SESSION_DIR = str(_BASE_PATH / "amazon_user_session")
-HEADLESS = False
+HEADLESS = True
 PAGE_DELAY = 1.2
 SCROLL_DELAY = 0.5
 CAPTCHA_WAIT = 3
