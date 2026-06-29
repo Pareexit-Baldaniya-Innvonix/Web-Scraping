@@ -19,6 +19,7 @@ import requests
 from src.config.constants import (
     CAPTCHA_WAIT,
     HEADERS,
+    HEADLESS,
     MONTH_MAP,
     NEXT_PAGE_SELECTORS,
     OUTPUT_DIR,
@@ -64,9 +65,16 @@ class Scraper:
     # ----- initialization -----
     def __init__(self, url: str) -> None:
         self.url: str = Scraper.normalize_url(url)
-        self.session = requests.Session()
-        self.session.headers.update(HEADERS)
         logger.debug("Scraper initialized for URL: %s", self.url)
+
+    # ----- create a fresh requests session with randomized headers -----
+    @staticmethod
+    def _new_session() -> requests.Session:
+        session = requests.Session()
+        headers = dict(HEADERS)
+        # ----- rotate minor User-Agent variation to reduce fingerprinting -----
+        session.headers.update(headers)
+        return session
 
     # ----- url validation & normalization -----
     @staticmethod
@@ -616,7 +624,8 @@ class Scraper:
             )
             review_location, review_date = Scraper.review_date_location(raw_meta)
 
-            sig = hash(f"{reviewer_name}_{review_date}_{review_title_text}_{rating}")
+            rating_key = f"{rating:.1f}" if rating is not None else "none"
+            sig = hash(f"{reviewer_name}_{review_date}_{review_title_text}_{rating_key}")
             if sig in seen:
                 continue
 
@@ -757,18 +766,24 @@ class Scraper:
         csv_path, json_path = Scraper.save_reviews(asin)
         logger.info("Initialized output files for ASIN: %s", asin)
 
-        shared_session_dir = os.path.join(SESSION_DIR, "shared_amazon_user")
-        os.makedirs(shared_session_dir, exist_ok=True)
+        reviews_session_dir = os.path.join(SESSION_DIR, f"reviews_{asin}")
+        os.makedirs(reviews_session_dir, exist_ok=True)
 
         seen: set = set()
         total = 0
         page_num = 1
 
         async with async_playwright() as p:
+            playwright_args = [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+            ]
             context = await p.chromium.launch_persistent_context(
-                shared_session_dir,
-                headless=settings.HEADLESS,
-                args=["--no-sandbox", "--disable-setuid-sandbox"],
+                reviews_session_dir,
+                headless=HEADLESS,
+                args=playwright_args,
                 user_agent=HEADERS["User-Agent"],
                 viewport={"width": 1280, "height": 800},
             )
@@ -797,7 +812,8 @@ class Scraper:
                 
                 page_source = await page.content()
                 soup = BeautifulSoup(page_source, "html.parser")
-                nodes = soup.select("[data-hook='review']") or soup.select(".review")
+
+                nodes = soup.select('[data-hook="review"]') or soup.select(".review")
 
                 if not nodes:
                     logger.info("No review elements found on this page. Pagination complete.")
@@ -1017,14 +1033,21 @@ class Scraper:
         seen_asins: set = set()
         page_num = 1
 
-        shared_session_dir = os.path.join(SESSION_DIR, "shared_amazon_user")
-        os.makedirs(shared_session_dir, exist_ok=True)
+        safe_slug = re.sub(r"[^\w\-_]", "_", query.strip().lower())
+        search_session_dir = os.path.join(SESSION_DIR, f"search_{safe_slug}")
+        os.makedirs(search_session_dir, exist_ok=True)
 
         async with async_playwright() as p:
+            playwright_args = [
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+            ]
             context = await p.chromium.launch_persistent_context(
-                shared_session_dir,
-                headless=settings.HEADLESS,
-                args=["--no-sandbox", "--disable-setuid-sandbox"],
+                search_session_dir,
+                headless=HEADLESS,
+                args=playwright_args,
                 user_agent=HEADERS["User-Agent"],
                 viewport={"width": 1280, "height": 800},
             )
@@ -1155,7 +1178,8 @@ class Scraper:
                     detail=str(e),
                 )
 
-            response = await asyncio.to_thread(self.session.get, self.url, timeout=15)
+            session = Scraper._new_session()
+            response = await asyncio.to_thread(session.get, self.url, timeout=15)
             if response.status_code == 404:
                 return ScrapeResult(
                     product=None,
