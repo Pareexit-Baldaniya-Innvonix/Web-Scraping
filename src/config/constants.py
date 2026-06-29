@@ -1,4 +1,5 @@
 # ----- library import -----
+from pathlib import Path
 from typing import Dict
 
 HEADERS = {
@@ -17,17 +18,18 @@ HEADERS = {
     "Sec-Fetch-Site": "none",
 }
 
+_BASE_PATH = Path(__file__).resolve().parent.parent
+
 LOG_DIR = "logs"
 OUTPUT_DIR = "output"
 SEARCH_OUTPUT_DIR = "output/searches"
 REVIEWS_OUTPUT_DIR = "output/reviews"
 
 # ----- review scraper constants -----
-SESSION_DIR = "./amazon_user_session"
+SESSION_DIR = str(_BASE_PATH / "amazon_user_session")
 PAGE_DELAY = 1.2
 SCROLL_DELAY = 0.5
 CAPTCHA_WAIT = 3
-HEADLESS = False
 NEXT_PAGE_SELECTORS = [
     "li.a-last a",
     "ul.a-pagination li.a-last a",
