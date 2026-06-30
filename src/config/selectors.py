@@ -1,6 +1,6 @@
 SELECTORS = {
     # ----- product title -----
-    "title": ("span", {"id": "productTitle"}),
+    "title": ("div", {"id": "title_feature_div"}),
     
     # ----- image -----
     "images": ("div", {"id": "altImages"}),
@@ -32,4 +32,16 @@ SELECTORS = {
     
     # ----- variants container -----
     "variants_container": ("div", {"id": "twister_feature_div"}),
+    
+    # ----- email -----
+    "email": ("input", {"id": "ap_email_login"}),
+
+    # ----- continue -----
+    "continue": ("span", {"id": "continue"}),
+
+    # ----- password -----
+    "password": ("input", {"id": "ap_password"}),
+
+    # ----- login -----
+    "login": ("input", {"id": "signInSubmit"}),
 }
