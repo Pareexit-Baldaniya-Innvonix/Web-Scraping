@@ -31,6 +31,7 @@
             -webkit-backdrop-filter: blur(8px);
             border: 1px solid rgba(255, 255, 255, 0.05);
             box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.3);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
         .glass-input:focus-within {
@@ -67,14 +68,13 @@
         .json-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 9999px; }
         .json-container::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
         
-        /* Vibrant Cyberpunk-ish JSON Highlighting */
+        /* JSON Highlighting styles */
         .json-key { color: #f472b6; font-weight: 600; }     
         .json-string { color: #2dd4bf; }                  
         .json-number { color: #fbbf24; }                  
         .json-boolean { color: #a855f7; }                 
         .json-null { color: #64748b; font-style: italic; } 
         
-        /* Interactive element styles inside payload code block */
         .json-img-link {
             text-decoration: underline;
             text-underline-offset: 2px;
@@ -88,8 +88,8 @@
 </head>
 <body class="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-x-hidden">
 
-    <div class="absolute top-1/4 left-1/4 w-80 h-80 bg-purple-600 rounded-full glow-blob"></div>
-    <div class="absolute bottom-1/3 right-1/4 w-[450px] h-[450px] bg-teal-500 rounded-full glow-blob" style="animation-delay: -4s;"></div>
+    <div class="absolute top-1/4 left-1/4 w-80 h-80 bg-purple-600 rounded-full glow-blob pointer-events-none"></div>
+    <div class="absolute bottom-1/3 right-1/4 w-[450px] h-[450px] bg-teal-500 rounded-full glow-blob pointer-events-none" style="animation-delay: -4s;"></div>
 
     <div class="w-full max-w-4xl glass-panel p-6 md:p-8 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] relative z-10 transition-all duration-300">
         
@@ -101,7 +101,7 @@
                 <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-slate-400">
                     Amazon Web Scraper
                 </h1>
-                <p class="text-xs md:text-sm text-slate-400 mt-0.5">Extract amazon product data, descriptions, search products, and reviews in JSON format</p>
+                <p class="text-xs md:text-sm text-slate-400 mt-0.5">Extract Amazon product data, descriptions, search products, and reviews in JSON format</p>
             </div>
         </div>
 
@@ -120,7 +120,7 @@
             </button>
         </div>
         
-        <div class="flex flex-col sm:flex-row gap-3 p-2 glass-input rounded-xl transition-all duration-300">
+        <div class="flex flex-col sm:flex-row gap-3 p-2 glass-input rounded-xl">
             <div class="flex-1 flex items-center gap-3 px-3 py-2 sm:py-0">
                 <i id="inputIcon" class="fa-solid fa-magnifying-glass text-slate-400 text-sm"></i>
                 <input type="text" id="urlInput" oninput="syncUrlInput(this.value)" onchange="syncUrlInput(this.value)" onpaste="setTimeout(() => syncUrlInput(this.value), 10)" onkeydown="handleInputKeyDown(event)"
@@ -149,14 +149,20 @@
         </div>
 
         <div id="skeletonContainer" class="hidden mt-5 border border-white/5 rounded-xl bg-slate-950/40 backdrop-blur-xl overflow-hidden shadow-2xl">
-            <div class="flex items-center justify-between px-5 py-4 bg-white/[0.01] border-b border-white/5">
-                <div class="flex items-center gap-3">
-                    <div class="text-xs font-mono font-bold uppercase tracking-wider bg-slate-900 px-2 py-1 rounded border border-white/5 flex items-center gap-2">
-                        <i class="fa-solid fa-circle-notch animate-spin text-teal-400 text-[10px]" id="skeletonIcon"></i>
-                        <span id="skeletonTitle" class="font-sans font-medium text-teal-400">Querying Marketplace Index & Extracting Products...</span>
+            <div class="flex items-center justify-between px-5 py-4 bg-white/[0.01] border-b border-white/5 gap-4 flex-wrap">
+                <div class="flex items-center min-w-0">
+                    <div class="text-xs font-mono font-bold uppercase tracking-wider bg-slate-900/80 px-2.5 py-1.5 rounded border border-white/5 flex items-center gap-2.5 truncate">
+                        <i class="fa-solid fa-circle-notch animate-spin text-teal-400 text-[11px] shrink-0" id="skeletonIcon"></i>
+                        <span id="skeletonTitle" class="font-mono font-medium text-teal-400 tracking-wide text-[11px]">Querying Marketplace Index & Extracting Products...</span>
                     </div>
                 </div>
-                <div class="h-6 w-20 bg-slate-900 rounded border border-white/5 animate-shimmer"></div>
+                <div class="flex items-center">
+                    <button id="cancelTaskBtn" onclick="abortActiveTask()" 
+                            class="text-[11px] bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3.5 py-1.5 rounded border border-red-500/20 transition duration-150 flex items-center gap-2 active:scale-[0.95] font-mono font-medium tracking-wide">
+                        <i class="fa-solid fa-ban text-[10px]"></i>
+                        <span>Cancel Task</span>
+                    </button>
+                </div>
             </div>
             
             <div class="p-5 md:p-6 space-y-4 font-mono select-none pointer-events-none animate-shimmer">
@@ -225,21 +231,19 @@
     </div>
 
     <script>
-        // ----- Tab-specific Caches -----
-        let caches = {
-            search: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false },
-            product: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false },
-            reviews: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false }
+        let stateCache = {
+            search: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null },
+            product: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null },
+            reviews: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null }
         };
-        // Initial Active State updated to match UI setup ('search')
         let activeMode = 'search'; 
 
         function syncUrlInput(val) {
-            caches[activeMode].inputVal = val;
+            stateCache[activeMode].inputVal = val;
         }
 
         function handleInputKeyDown(event) {
-            if (event.key === "Enter" && !caches[activeMode].isScraping) {
+            if (event.key === "Enter" && !stateCache[activeMode].isScraping) {
                 executeScrape();
             }
         }
@@ -285,7 +289,7 @@
                 modeSearchBtn.className = activeTabStyle;
                 btnText.textContent = "Search Products";
                 reviewsNotice.classList.add('hidden');
-                if (!caches.search.isScraping && !caches.search.currentPayload) {
+                if (!stateCache.search.isScraping && !stateCache.search.currentPayload) {
                     searchNotice.classList.remove('hidden');
                 } else {
                     searchNotice.classList.add('hidden');
@@ -297,7 +301,7 @@
                 modeReviewsBtn.className = activeTabStyle;
                 btnText.textContent = "Scrape Reviews";
                 searchNotice.classList.add('hidden');
-                if (!caches.reviews.isScraping && !caches.reviews.currentPayload) {
+                if (!stateCache.reviews.isScraping && !stateCache.reviews.currentPayload) {
                     reviewsNotice.classList.remove('hidden');
                 } else {
                     reviewsNotice.classList.add('hidden');
@@ -307,9 +311,9 @@
                 inputIcon.className = "fa-solid fa-link text-slate-400 text-sm";
             }
 
-            urlInput.value = caches[mode].inputVal;
+            urlInput.value = stateCache[mode].inputVal;
 
-            if (caches[mode].isScraping) {
+            if (stateCache[mode].isScraping) {
                 btn.disabled = true;
                 btn.classList.add('opacity-50', 'cursor-not-allowed');
                 loader.classList.remove('hidden');
@@ -323,10 +327,10 @@
                 loader.classList.add('hidden');
                 skeletonContainer.classList.add('hidden');
                 
-                if (caches[mode].currentPayload) {
-                    document.getElementById('output').innerHTML = syntaxHighlightJson(caches[mode].currentPayload);
+                if (stateCache[mode].currentPayload) {
+                    document.getElementById('output').innerHTML = syntaxHighlightJson(stateCache[mode].currentPayload);
                     resultContainer.classList.remove('hidden');
-                    if (mode === 'reviews' && caches.reviews.scrapedRawData?.reviews?.length > 0) {
+                    if (mode === 'reviews' && stateCache.reviews.scrapedRawData?.reviews?.length > 0) {
                         downloadCsvBtn.classList.remove('hidden');
                     } else {
                         downloadCsvBtn.classList.add('hidden');
@@ -343,17 +347,17 @@
             const skeletonTitle = document.getElementById('skeletonTitle');
             const skeletonIcon = document.getElementById('skeletonIcon');
             if (mode === 'product') {
-                skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-purple-400 text-[10px]";
+                skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-purple-400 text-[11px] shrink-0";
                 skeletonTitle.textContent = "Extracting Product Object JSON...";
-                skeletonTitle.className = "font-sans font-medium text-purple-400";
+                skeletonTitle.className = "font-mono font-medium text-purple-400 tracking-wide text-[11px]";
             } else if (mode === 'search') {
-                skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-teal-400 text-[10px]";
+                skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-teal-400 text-[11px] shrink-0";
                 skeletonTitle.textContent = "Querying Marketplace Index & Extracting Products...";
-                skeletonTitle.className = "font-sans font-medium text-teal-400";
+                skeletonTitle.className = "font-mono font-medium text-teal-400 tracking-wide text-[11px]";
             } else {
-                skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-indigo-400 text-[10px]";
+                skeletonIcon.className = "fa-solid fa-circle-notch animate-spin text-indigo-400 text-[11px] shrink-0";
                 skeletonTitle.textContent = "Scraping Pages & Compiling Reviews Array JSON...";
-                skeletonTitle.className = "font-sans font-medium text-indigo-400";
+                skeletonTitle.className = "font-mono font-medium text-indigo-400 tracking-wide text-[11px]";
             }
         }
 
@@ -369,12 +373,10 @@
                         cls = 'json-string';
                         let cleanUrl = match.slice(1, -1);
                         
-                        // 1. Image asset pattern check
                         if (/"https?:\/\/[^"]+\.(amazon\.com|amazon-eu|media-amazon|ssl-images-amazon)[^"]+\.(jpg|jpeg|png|gif)"/i.test(match)) {
                             return '"' + `<span class="${cls} json-img-link" onclick="openImageModal('${cleanUrl}')">${cleanUrl}</span>` + '"';
                         }
                         
-                        // 2. Navigation product link pattern check
                         if (/^https?:\/\/[^"]+amazon\.[a-z.]+/i.test(cleanUrl) || /^\/(?:dp|gp\/product)\/[A-Z0-9]{10}/i.test(cleanUrl)) {
                             let absoluteUrl = cleanUrl.startsWith('/') ? `https://www.amazon.in${cleanUrl}` : cleanUrl;
                             return '"' + `<a href="${absoluteUrl}" target="_blank" rel="noopener noreferrer" class="${cls} json-img-link">${cleanUrl}</a>` + '"';
@@ -409,7 +411,8 @@
             modal.classList.remove('hidden');
             setTimeout(() => {
                 modal.classList.remove('opacity-0');
-                modal.querySelector('.relative').classList.remove('scale-95');
+                const p = modal.querySelector('.relative');
+                if (p) p.classList.remove('scale-95');
             }, 10);
             document.body.style.overflow = 'hidden'; 
         }
@@ -419,7 +422,8 @@
             if (!modal || modal.classList.contains('hidden')) return;
 
             modal.classList.add('opacity-0');
-            modal.querySelector('.relative').classList.add('scale-95');
+            const p = modal.querySelector('.relative');
+            if (p) p.classList.add('scale-95');
             
             setTimeout(() => {
                 modal.classList.add('hidden');
@@ -432,6 +436,28 @@
             if (event.key === "Escape") closeImageModal();
         });
 
+        async function abortActiveTask() {
+            const currentWorkingMode = activeMode;
+            const taskKey = stateCache[currentWorkingMode].activeTaskKey;
+            if (!taskKey) return;
+
+            try {
+                const response = await fetch(`/api/cancel/${encodeURIComponent(taskKey)}`, {
+                    method: 'POST'
+                });
+                if (response.ok) {
+                    const errorContainer = document.getElementById('error');
+                    const errorMsg = document.getElementById('errorMsg');
+                    if (errorMsg && errorContainer) {
+                        errorMsg.textContent = "Operation explicitly cancelled by user request.";
+                        errorContainer.classList.remove('hidden');
+                    }
+                }
+            } catch (err) {
+                console.error("Failed to cleanly signal manual task cancellation:", err);
+            }
+        }
+
         async function executeScrape() {
             const currentWorkingMode = activeMode; 
             const btn = document.getElementById('scrapeBtn');
@@ -440,45 +466,55 @@
             const errorMsg = document.getElementById('errorMsg');
             const resultContainer = document.getElementById('resultContainer');
             const skeletonContainer = document.getElementById('skeletonContainer');
-            const activeInputVal = caches[currentWorkingMode].inputVal;
+            const activeInputVal = stateCache[currentWorkingMode].inputVal;
 
             if (!activeInputVal) {
                 const term = currentWorkingMode === 'search' ? "search query" : "valid Amazon URL";
-                errorMsg.textContent = `Please provide a ${term} before extracting data.`;
-                errorContainer.classList.remove('hidden');
-                setTimeout(() => { errorContainer.classList.add('hidden'); }, 3000);
+                if (errorMsg && errorContainer) {
+                    errorMsg.textContent = `Please provide a ${term} before extracting data.`;
+                    errorContainer.classList.remove('hidden');
+                    setTimeout(() => { errorContainer.classList.add('hidden'); }, 3000);
+                }
                 return;
             }
 
-            caches[currentWorkingMode].isScraping = true;
-            caches[currentWorkingMode].currentPayload = null;
-            caches[currentWorkingMode].scrapedRawData = null;
+            let targetEndpoint = '/api/scrape';
+            let payloadBody = {};
+            let taskKey = "";
+
+            if (currentWorkingMode === 'product') {
+                const cleanUrl = activeInputVal.trim();
+                targetEndpoint = '/api/scrape';
+                payloadBody = { url: activeInputVal };
+                taskKey = `scrape:${cleanUrl}`;
+            } else if (currentWorkingMode === 'search') {
+                const cleanQuery = activeInputVal.trim();
+                targetEndpoint = '/api/search';
+                payloadBody = { query: activeInputVal };
+                taskKey = `search:${cleanQuery}`;
+            } else if (currentWorkingMode === 'reviews') {
+                const cleanUrl = activeInputVal.trim();
+                targetEndpoint = '/api/scrape/reviews';
+                payloadBody = { url: activeInputVal };
+                taskKey = `reviews:${cleanUrl}`;
+            }
+
+            stateCache[currentWorkingMode].isScraping = true;
+            stateCache[currentWorkingMode].currentPayload = null;
+            stateCache[currentWorkingMode].scrapedRawData = null;
+            stateCache[currentWorkingMode].activeTaskKey = taskKey;
 
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
-            loader.classList.remove('hidden');
-            errorContainer.classList.add('hidden');
+            if (loader) loader.classList.remove('hidden');
+            if (errorContainer) errorContainer.classList.add('hidden');
             
             document.getElementById('searchNotice').classList.add('hidden');
             document.getElementById('reviewsNotice').classList.add('hidden');
-            resultContainer.classList.add('hidden');
+            if (resultContainer) resultContainer.classList.add('hidden');
 
             setupSkeletonText(currentWorkingMode);
-            skeletonContainer.classList.remove('hidden');
-
-            let targetEndpoint = '/api/scrape';
-            let payloadBody = {};
-
-            if (currentWorkingMode === 'product') {
-                targetEndpoint = '/api/scrape';
-                payloadBody = { url: activeInputVal };
-            } else if (currentWorkingMode === 'search') {
-                targetEndpoint = '/api/search';
-                payloadBody = { query: activeInputVal };
-            } else if (currentWorkingMode === 'reviews') {
-                targetEndpoint = '/api/scrape/reviews';
-                payloadBody = { url: activeInputVal };
-            }
+            if (skeletonContainer) skeletonContainer.classList.remove('hidden');
 
             try {
                 const response = await fetch(targetEndpoint, {
@@ -490,55 +526,56 @@
                 let data = await response.json();
                 if (!response.ok) throw new Error(data.detail || `Engine execution failed: Status ${response.status}`);
 
-                // --- FIX: Flatten double "products" nesting if present ---
                 if (currentWorkingMode === 'search' && data.products && data.products.products) {
                     data = {
                         total_products: data.products.total_products,
                         products: data.products.products
                     };
                 }
-                // ---------------------------------------------------------
 
-                caches[currentWorkingMode].scrapedRawData = data; 
+                stateCache[currentWorkingMode].scrapedRawData = data; 
                 let rawPayload = JSON.stringify(data, null, 4);
-                caches[currentWorkingMode].currentPayload = rawPayload.replace(/("rating(?:s)?":\s*)(\d+)\b(?!\.)/g, "$1$2.0");
+                stateCache[currentWorkingMode].currentPayload = rawPayload.replace(/("rating(?:s)?":\s*)(\d+)\b(?!\.)/g, "$1$2.0");
 
             } catch (err) {
-                if (activeMode === currentWorkingMode) {
+                if (activeMode === currentWorkingMode && errorMsg && errorContainer) {
                     errorMsg.textContent = err.message;
                     errorContainer.classList.remove('hidden');
                 }
             } finally {
-                caches[currentWorkingMode].isScraping = false;
+                stateCache[currentWorkingMode].isScraping = false;
 
                 if (activeMode === currentWorkingMode) {
                     btn.disabled = false;
                     btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    loader.classList.add('hidden');
-                    skeletonContainer.classList.add('hidden');
+                    if (loader) loader.classList.add('hidden');
+                    if (skeletonContainer) skeletonContainer.classList.add('hidden');
                     
-                    if (activeMode === 'search' && !caches.search.currentPayload) {
+                    if (activeMode === 'search' && !stateCache.search.currentPayload) {
                         document.getElementById('searchNotice').classList.remove('hidden');
                     }
-                    if (activeMode === 'reviews' && !caches.reviews.currentPayload) {
+                    if (activeMode === 'reviews' && !stateCache.reviews.currentPayload) {
                         document.getElementById('reviewsNotice').classList.remove('hidden');
                     }
 
                     const downloadCsvBtn = document.getElementById('downloadCsvBtn');
-                    if (caches[activeMode].currentPayload) {
-                        document.getElementById('output').innerHTML = syntaxHighlightJson(caches[activeMode].currentPayload);
-                        resultContainer.classList.remove('hidden');
-                        if (activeMode === 'reviews' && caches.reviews.scrapedRawData?.reviews?.length > 0) {
+                    if (stateCache[activeMode].currentPayload) {
+                        document.getElementById('output').innerHTML = syntaxHighlightJson(stateCache[activeMode].currentPayload);
+                        if (resultContainer) resultContainer.classList.remove('hidden');
+                        if (activeMode === 'reviews' && stateCache.reviews.scrapedRawData?.reviews?.length > 0 && downloadCsvBtn) {
                             downloadCsvBtn.classList.remove('hidden');
                         }
                     }
                     resetCopyButtonState();
                 }
+                
+                // Fixed: The key is wiped AFTER handling final UI logic so cancel requests can succeed anytime during execution
+                stateCache[currentWorkingMode].activeTaskKey = null;
             }
         }
 
         function downloadReviewsCsv() {
-            const reviewsData = caches.reviews.scrapedRawData;
+            const reviewsData = stateCache.reviews.scrapedRawData;
             if (!reviewsData || !reviewsData.reviews || reviewsData.reviews.length === 0) return;
 
             const reviews = reviewsData.reviews;
@@ -565,7 +602,7 @@
             
             let filename = "amazon_reviews.csv";
             try {
-                const asinMatch = caches.reviews.inputVal.match(/(?:dp|gp\/product|product-reviews)\/([A-Z0-9]{10})/i);
+                const asinMatch = stateCache.reviews.inputVal.match(/(?:dp|gp\/product|product-reviews)\/([A-Z0-9]{10})/i);
                 if (asinMatch && asinMatch[1]) filename = `reviews_${asinMatch[1].toUpperCase()}.csv`;
             } catch (e) {
                 console.error("Couldn't process ASIN title stamp pattern", e);
@@ -590,15 +627,17 @@
         }
 
         async function copyToClipboard() {
-            const currentPayload = caches[activeMode].currentPayload;
+            const currentPayload = stateCache[activeMode].currentPayload;
             if (!currentPayload) return;
             const copyIcon = document.getElementById('copyIcon');
             const copyText = document.getElementById('copyText');
             try {
                 await navigator.clipboard.writeText(currentPayload);
-                copyIcon.className = "fa-solid fa-check text-teal-400";
-                copyText.textContent = "Copied!";
-                copyText.classList.add("text-teal-400");
+                if (copyIcon && copyText) {
+                    copyIcon.className = "fa-solid fa-check text-teal-400";
+                    copyText.textContent = "Copied!";
+                    copyText.classList.add("text-teal-400");
+                }
                 setTimeout(resetCopyButtonState, 2500);
             } catch (err) {
                 console.error("Failed to copy system payload to clipboard: ", err);
