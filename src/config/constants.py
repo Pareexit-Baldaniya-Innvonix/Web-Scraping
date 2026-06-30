@@ -16,23 +16,23 @@ HEADERS = {
 
 _BASE_PATH = Path(__file__).resolve().parent.parent
 
-LOG_DIR = "logs"
-OUTPUT_DIR = "output"
-SEARCH_OUTPUT_DIR = "output/searches"
-REVIEWS_OUTPUT_DIR = "output/reviews"
+LOG_DIR = Path("logs")
+OUTPUT_DIR = Path("output")
+SEARCH_OUTPUT_DIR = OUTPUT_DIR / "searches"
+REVIEWS_OUTPUT_DIR = OUTPUT_DIR / "reviews"
 
 # ----- review scraper constants -----
 SESSION_DIR = str(_BASE_PATH / "amazon_user_session")
-HEADLESS = True
+HEADLESS = False
 PAGE_DELAY = 1.2
 SCROLL_DELAY = 0.5
 CAPTCHA_WAIT = 3
+
+# ----- css selectors for next page button -----
 NEXT_PAGE_SELECTORS = [
     "li.a-last a",
     "ul.a-pagination li.a-last a",
-    "a:has-text('Next page')",
-    "a:has-text('Next >')",
-    "a:has-text('More reviews')",
+    "a.s-pagination-next",
     "[data-hook='show-more-button']",
 ]
 
@@ -43,10 +43,9 @@ SEARCH_NEXT_PAGE_SELECTORS = [
     "ul.a-pagination li.a-last a",
     "li.a-last a",
     "a[aria-label='Go to next page']",
-    "span.s-pagination-strip a:has-text('Next')",
-    "ul.a-pagination a:has-text('Next')",
 ]
 
+# ----- months map -----
 MONTH_MAP: Dict[str, int] = {
     "jan": 1,
     "feb": 2,
