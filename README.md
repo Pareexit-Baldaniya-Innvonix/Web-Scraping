@@ -40,7 +40,7 @@ WEB-SCRAPING/
 │   │   └── index.html           # Web dashboard UI (TailwindCSS + glassmorphism)
 │   ├── utils/
 │   │   └── logger.py            # Centralized logging setup
-│   ├── main.py                      # FastAPI app entry point (root-level)
+│   └── main.py                  # FastAPI app entry point (top-level module inside src/)
 ├── .env                         # Local environment variables (git-ignored)
 ├── .gitignore
 ├── example.env                  # Example env file for reference
@@ -80,6 +80,8 @@ WEB-SCRAPING/
   - Syntax-highlighted JSON output (color-coded keys, strings, numbers, booleans)
   - Clickable image URLs open in a full image preview modal
   - **Download CSV** button for paginated review results
+  - **Cancel Task** button to abort an in-progress scrape/search/reviews run directly from the UI
+- **Cancellable background tasks** — every request (`/api/scrape`, `/api/search`, `/api/scrape/reviews`) runs as an `asyncio` task tracked in an in-memory registry keyed by `{mode}:{normalized_url_or_query}`. Tasks can be cancelled explicitly via `POST /api/cancel/{task_key}`, are automatically cancelled if the client disconnects mid-request (polled every 0.5s), and starting an identical request while one is already running cancels the previous run before starting fresh.
 
 ---
 
@@ -179,8 +181,9 @@ Navigate to `http://127.0.0.1:8000` in your browser. The dashboard provides thre
 - **Product Reviews** tab — calls `/api/scrape/reviews` with a product URL, launches a visible Chromium browser on the server to paginate up to **10 review pages (~100 reviews)**, and returns all collected reviews as JSON. A **Download CSV** button appears once results are ready.
 - Syntax-highlighted JSON output with clickable image URLs (opens a preview modal)
 - A **Copy Payload** button to copy the raw JSON to clipboard
+- A **Cancel Task** button that appears while a scrape is in progress — calls `POST /api/cancel/{task_key}` to abort the active background task for the current mode
 
-> **Note:** The Product Reviews and Search Products both open a real browser window on the machine running the server. If a CAPTCHA is encountered, the browser pauses for 25 seconds to allow manual resolution before continuing. If Amazon redirects to a login page and credentials are configured in `.env`, sign-in is handled automatically.
+> **Note:** The Product Reviews and Search Products both open a real browser window on the machine running the server. If a CAPTCHA is encountered, the browser pauses for `CAPTCHA_WAIT` seconds (default: 3 seconds, configurable in `constants.py`) to allow manual resolution before continuing. If Amazon redirects to a login page and credentials are configured in `.env`, sign-in is handled automatically.
 
 ---
 
@@ -189,6 +192,55 @@ Navigate to `http://127.0.0.1:8000` in your browser. The dashboard provides thre
 ### `GET /`
 
 Serves the web dashboard UI (`templates/index.html`).
+
+---
+
+### `GET /api/tasks`
+
+Returns the list of currently active (in-progress, not yet completed) background task keys. Useful for polling whether a scrape, search, or reviews job is still running.
+
+**Success Response — `200 OK`:**
+```json
+{
+    "active_tasks": ["scrape:https://www.amazon.in/dp/B0GL8FNY5G", "search:watermelon seeds"]
+}
+```
+
+---
+
+### `POST /api/cancel/{task_key}`
+
+Explicitly cancels an active background task by its key. Task keys follow the pattern `{mode}:{normalized_url_or_query}`, where `mode` is `scrape`, `reviews`, or `search` (as returned by `GET /api/tasks`). The URL portion of `scrape`/`reviews` keys is automatically re-normalized server-side before lookup, so it doesn't need to match the original request character-for-character.
+
+No request body is needed — the `task_key` is sent directly in the URL path. FastAPI captures everything after `/api/cancel/` as a single path parameter, including the colon and any embedded URL.
+
+| Task Type | Example `task_key` |
+|---|---|
+| Scrape | `scrape:https://www.amazon.in/dp/B0GL8FNY5G` |
+| Reviews | `reviews:https://www.amazon.in/dp/B0GL8FNY5G` |
+| Search | `search:watermelon seeds` |
+
+**Success Response — `200 OK`:**
+```json
+{
+    "cancelled": true,
+    "task_key": "scrape:https://www.amazon.in/dp/B0GL8FNY5G"
+}
+```
+
+**Error Responses:**
+
+| Status | Trigger |
+|---|---|
+| `404 Not Found` | No active task matches the given `task_key` (already completed, never started, or wrong key) |
+
+```json
+{
+    "detail": "No active task found matching target contextual identifier: scrape:https://example.com"
+}
+```
+
+> **Note:** Every long-running request also self-cancels automatically if the HTTP client disconnects mid-request — the server polls connection state every `0.5s` and aborts the underlying `asyncio` task, returning a `499` status internally. Launching a second identical request (same mode + same normalized URL/query) while one is already in flight also cancels the earlier one automatically before starting the new run.
 
 ---
 
@@ -349,6 +401,8 @@ Launches a Playwright-controlled Chromium browser to paginate through all review
    ```
 5. Click **Send**.
 
+> To test `POST /api/cancel/{task_key}`, set the method to **POST**, build the URL as `http://127.0.0.1:8000/api/cancel/{task_key}` (e.g., `.../api/cancel/scrape:https://www.amazon.in/dp/B0GL8FNY5G`), and leave the **Body** tab set to **none** — no body is required.
+
 You can also explore and test all endpoints interactively via the auto-generated Swagger UI at:
 ```
 http://127.0.0.1:8000/docs
@@ -420,9 +474,9 @@ ftp://www.amazon.in/dp/B0DSKL9MQ8      # Invalid scheme (must be http or https)
 3. Each page is scrolled to trigger lazy-loaded product cards, then parsed with `BeautifulSoup`.
 4. Each result card is parsed for ASIN, title, price, product link, and estimated delivery days. Delivery days are calculated by parsing the delivery date text displayed on the card.
 5. Results are filtered by relevance: stop-words are stripped from the query and each product title must contain the primary query token plus at least one secondary token. Accessory-type results (cases, covers, pouches) are automatically excluded unless the query explicitly targets them.
-5. Products are deduplicated by ASIN across all pages.
-6. After each page, progress is atomically written to `output/searches/search_{query}.json` (via a `.tmp` file swap) so partial results survive any interruption.
-7. Pagination continues by clicking the "Next" button until no further pages are found, 20 pages are reached, or the total product count hits the configured threshold.
+6. Products are deduplicated by ASIN across all pages.
+7. After each page, progress is atomically written to `output/searches/search_{query}.json` (via a `.tmp` file swap) so partial results survive any interruption.
+8. Pagination continues by clicking the "Next" button until no further pages are found, 20 pages are reached, or the total product count hits the configured threshold.
 
 ### Product Reviews (`/api/scrape/reviews`)
 
@@ -431,7 +485,7 @@ ftp://www.amazon.in/dp/B0DSKL9MQ8      # Invalid scheme (must be http or https)
 3. The browser navigates to `https://www.amazon.in/product-reviews/{ASIN}?reviewerType=all_reviews`.
 4. If a login page is detected, the scraper automatically signs in using `AMAZON_EMAIL` and `AMAZON_PASSWORD` from `.env`. OTP/MFA pages trigger a configurable wait (`CAPTCHA_WAIT`) for manual resolution before continuing.
 5. Each page is scrolled to trigger lazy-loaded content, then parsed with `BeautifulSoup`.
-6. If a CAPTCHA is detected in the page content, the scraper pauses for 25 seconds for manual resolution.
+6. If a CAPTCHA is detected in the page content, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 3 seconds, configurable in `constants.py`) for manual resolution.
 7. Reviews are deduplicated using a hash of `reviewer_name + date + title + rating` to prevent duplicates across page reloads.
 8. After each page, reviews are appended incrementally to `output/reviews/reviews_{ASIN}.csv` and `output/reviews/reviews_{ASIN}.json`.
 9. Pagination continues by clicking the next-page control until no further pages are found, **10 pages** are reached, or the threshold limit is hit.
