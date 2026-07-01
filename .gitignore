@@ -155,6 +155,7 @@ activemq-data/
 .env
 .envrc
 .venv
+.Web-Scraping
 env/
 venv/
 ENV/
