@@ -708,7 +708,6 @@ class Scraper:
             if await page.locator(continue_sel).count() > 0:
                 await page.locator(continue_sel).click()
 
-            # ----- FIX: Dynamically wait for either password OR a new user challenge -----
             logger.info("Waiting for password screen or validation shift...")
             
             new_user_selectors = [
@@ -734,7 +733,7 @@ class Scraper:
                     break
                 await asyncio.sleep(0.5)
 
-            # ----- Handle the 'New User / Unrecognized Email' branch -----
+            # ----- handle if email id is new on amazon -----
             if is_new_user:
                 logger.warning("Email not recognized. 'It looks like you are new to Amazon' state or warning detected.")
                 
@@ -761,7 +760,7 @@ class Scraper:
             if not password_visible:
                 raise TimeoutError("Timed out waiting for password field to appear or new user prompt to step in.")
 
-            # ----- Standard Flow: Log and fill password -----
+            # ----- log and fill password -----
             password_locator = page.locator(password_sel)
             await password_locator.wait_for(state="visible", timeout=5000)
             await password_locator.fill("")
