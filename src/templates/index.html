@@ -12,61 +12,61 @@
             background-color: #030712;
             background-image:
                 radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%),
-                radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%),
-                radial-gradient(at 100% 0%, hsla(263,55%,52%,0.15) 0, transparent 40%);
+                radial-gradient(at 50% 0%, hsla(225,39%,25%,0.15) 0, transparent 50%),
+                radial-gradient(at 100% 0%, hsla(263,55%,52%,0.12) 0, transparent 40%);
             color: #f8fafc; 
         }
 
         /* Glassmorphism Classes */
         .glass-panel {
-            background: rgba(15, 23, 42, 0.45);
-            backdrop-filter: blur(24px) saturate(120%);
-            -webkit-backdrop-filter: blur(24px) saturate(120%);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(15, 23, 42, 0.4);
+            backdrop-filter: blur(24px) saturate(130%);
+            -webkit-backdrop-filter: blur(24px) saturate(130%);
+            border: 1px solid rgba(255, 255, 255, 0.06);
         }
 
         .glass-input {
-            background: rgba(15, 23, 42, 0.6);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
+            background: rgba(8, 13, 28, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.05);
-            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.3);
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.4);
+            transition: border-color 0.25s ease, box-shadow 0.25s ease;
         }
 
         .glass-input:focus-within {
-            border-color: rgba(168, 85, 247, 0.4);
-            box-shadow: 0 0 20px rgba(168, 85, 247, 0.15), inset 0 2px 4px 0 rgba(0, 0, 0, 0.3);
+            border-color: rgba(168, 85, 247, 0.45);
+            box-shadow: 0 0 25px rgba(168, 85, 247, 0.12), inset 0 2px 4px 0 rgba(0, 0, 0, 0.4);
         }
 
         /* Ambient Glow Blobs */
         .glow-blob {
-            filter: blur(80px);
-            opacity: 0.35;
+            filter: blur(90px);
+            opacity: 0.25;
             mix-blend-mode: screen;
-            animation: float 12s ease-in-out infinite alternate;
+            animation: float 14s ease-in-out infinite alternate;
         }
 
         @keyframes float {
             0% { transform: translateY(0px) scale(1); }
-            100% { transform: translateY(-20px) scale(1.1); }
+            100% { transform: translateY(-30px) scale(1.08); }
         }
 
         /* Skeleton Screen Shimmer Animation */
         @keyframes shimmer {
-            0% { opacity: 0.25; }
-            50% { opacity: 0.55; }
-            100% { opacity: 0.25; }
+            0% { opacity: 0.2; }
+            50% { opacity: 0.5; }
+            100% { opacity: 0.2; }
         }
         .animate-shimmer {
-            animation: shimmer 1.8s ease-in-out infinite;
+            animation: shimmer 1.6s ease-in-out infinite;
         }
 
         /* Scrollbar styling */
         .json-container::-webkit-scrollbar { width: 6px; height: 6px; }
-        .json-container::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.3); }
-        .json-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 9999px; }
-        .json-container::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+        .json-container::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.2); }
+        .json-container::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 9999px; }
+        .json-container::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.18); }
         
         /* JSON Highlighting styles */
         .json-key { color: #f472b6; font-weight: 600; }     
@@ -77,7 +77,7 @@
         
         .json-img-link {
             text-decoration: underline;
-            text-underline-offset: 2px;
+            text-underline-offset: 3px;
             cursor: pointer;
             transition: color 150ms ease;
         }
@@ -86,66 +86,63 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-x-hidden">
+<body class="min-h-screen flex items-center justify-center p-4 md:p-8 relative overflow-x-hidden tracking-normal selection:bg-purple-500/30 selection:text-purple-200">
 
     <div class="absolute top-1/4 left-1/4 w-80 h-80 bg-purple-600 rounded-full glow-blob pointer-events-none"></div>
     <div class="absolute bottom-1/3 right-1/4 w-[450px] h-[450px] bg-teal-500 rounded-full glow-blob pointer-events-none" style="animation-delay: -4s;"></div>
 
-    <div class="w-full max-w-4xl glass-panel p-6 md:p-8 rounded-2xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.5)] relative z-10 transition-all duration-300">
+    <div class="w-full max-w-6xl flex flex-col lg:flex-row items-start gap-6 relative z-10">
+    <div class="w-full lg:flex-1 glass-panel p-6 md:p-8 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] transition-all duration-300">
         
-        <div class="flex items-center gap-4 mb-6 pb-5 border-b border-white/5">
-            <div class="bg-gradient-to-tr from-purple-600 to-indigo-600 p-3 rounded-xl shadow-lg shadow-purple-900/30 ring-1 ring-white/20">
+        <div class="flex items-center gap-4 mb-6 pb-5 border-b border-white/[0.06]">
+            <div class="bg-gradient-to-tr from-purple-600 to-indigo-600 p-3 rounded-xl shadow-lg shadow-purple-900/40 ring-1 ring-white/20">
                 <i class="fa-solid fa-spider text-white text-xl animate-pulse"></i>
             </div>
             <div>
-                <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-200 to-slate-400">
+                <h1 class="text-2xl md:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-slate-400">
                     Amazon Web Scraper
                 </h1>
-                <p class="text-xs md:text-sm text-slate-400 mt-0.5">Extract Amazon product data, descriptions, search products, and reviews in JSON format</p>
+                <p class="text-xs md:text-sm text-slate-400 mt-1 font-medium">Extract Amazon product data, descriptions, search products, and reviews in structured JSON format</p>
             </div>
         </div>
 
-        <div class="flex bg-slate-950/60 p-1 rounded-xl gap-1 mb-5 max-w-xl border border-white/5">
+        <div class="flex bg-slate-950/60 p-1.5 rounded-xl gap-1.5 mb-6 max-w-xl border border-white/5 shadow-inner">
             <button onclick="setScrapeMode('search')" id="modeSearchBtn" 
-                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow">
-                <i class="fa-solid fa-magnifying-glass mr-1.5"></i>Search Products
+                    class="flex-1 text-xs md:text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-300 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-indigo-950/40">
+                <i class="fa-solid fa-magnifying-glass mr-2 opacity-90"></i>Search Products
             </button>
             <button onclick="setScrapeMode('product')" id="modeProductBtn" 
-                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200">
-                <i class="fa-solid fa-box-open mr-1.5"></i>Product Details
+                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]">
+                <i class="fa-solid fa-box-open mr-2 opacity-70"></i>Product Details
             </button>
             <button onclick="setScrapeMode('reviews')" id="modeReviewsBtn" 
-                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200">
-                <i class="fa-solid fa-comments mr-1.5"></i>Product Reviews
+                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]">
+                <i class="fa-solid fa-comments mr-2 opacity-70"></i>Product Reviews
             </button>
         </div>
         
-        <div class="flex flex-col sm:flex-row gap-3 p-2 glass-input rounded-xl">
+        <div class="flex flex-col sm:flex-row gap-3 p-2 glass-input rounded-xl mb-1">
             <div class="flex-1 flex items-center gap-3 px-3 py-2 sm:py-0">
                 <i id="inputIcon" class="fa-solid fa-magnifying-glass text-slate-400 text-sm"></i>
                 <input type="text" id="urlInput" oninput="syncUrlInput(this.value)" onchange="syncUrlInput(this.value)" onpaste="setTimeout(() => syncUrlInput(this.value), 10)" onkeydown="handleInputKeyDown(event)"
-                       class="w-full bg-transparent border-none text-slate-200 placeholder-slate-500 text-sm focus:outline-none" 
+                       class="w-full bg-transparent border-none text-slate-100 placeholder-slate-500 text-sm focus:outline-none py-1" 
                        placeholder="Enter product keywords (e.g., Wireless Headphones)...">
             </div>
             <button onclick="executeScrape()" id="scrapeBtn" 
-                    class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-semibold px-6 py-3 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 active:scale-[0.97] shadow-lg shadow-indigo-950/50 group whitespace-nowrap">
+                    class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-bold px-6 py-3 rounded-lg transition-all duration-250 flex items-center justify-center gap-2 active:scale-[0.97] hover:scale-[1.01] shadow-lg shadow-indigo-950/60 group whitespace-nowrap">
                 <span id="btnText">Search Products</span>
                 <i class="fa-solid fa-arrow-right text-xs transition-transform group-hover:translate-x-1"></i>
             </button>
         </div>
 
-        <div id="searchNotice" class="mt-3 p-3 bg-teal-500/10 border border-teal-500/20 backdrop-blur-md rounded-xl text-teal-300 text-xs flex items-center gap-2.5">
-            <i class="fa-solid fa-circle-info text-teal-400 text-sm"></i>
-            <span>Note: Search Products runs browser automation tasks to extract multiple product grids. This may take longer to process.</span>
+        <div id="searchNotice" class="mt-4 p-3.5 bg-teal-500/10 border border-teal-500/20 backdrop-blur-md rounded-xl text-teal-300 text-xs flex items-center gap-3 shadow-sm">
+            <i class="fa-solid fa-circle-info text-teal-400 text-sm shrink-0"></i>
+            <span class="leading-relaxed">Note: Search Products runs background engine browser instances to compile product layouts. This sequence requires advanced scheduling cycles.</span>
         </div>
 
-        <div id="reviewsNotice" class="hidden mt-3 p-3 bg-indigo-500/10 border border-indigo-500/20 backdrop-blur-md rounded-xl text-indigo-300 text-xs flex items-center gap-2.5">
-            <i class="fa-solid fa-circle-info text-indigo-400 text-sm"></i>
-            <span>Note: Product Reviews extraction runs browser automation tasks to paginate review sections. This may take longer to process.</span>
-        </div>
-
-        <div id="loader" class="hidden my-8 flex items-center justify-center w-full h-8 relative overflow-visible select-none">
-            <i class="fa-solid fa-circle-notch animate-spin text-purple-500 text-2xl"></i>
+        <div id="reviewsNotice" class="hidden mt-4 p-3.5 bg-indigo-500/10 border border-indigo-500/20 backdrop-blur-md rounded-xl text-indigo-300 text-xs flex items-center gap-3 shadow-sm">
+            <i class="fa-solid fa-circle-info text-indigo-400 text-sm shrink-0"></i>
+            <span class="leading-relaxed">Note: Product Reviews parser iterates multiple structural review segments dynamically. This complex pagination task can take extra execution overhead.</span>
         </div>
 
         <div id="skeletonContainer" class="hidden mt-5 border border-white/5 rounded-xl bg-slate-950/40 backdrop-blur-xl overflow-hidden shadow-2xl">
@@ -153,7 +150,7 @@
                 <div class="flex items-center min-w-0">
                     <div class="text-xs font-mono font-bold uppercase tracking-wider bg-slate-900/80 px-2.5 py-1.5 rounded border border-white/5 flex items-center gap-2.5 truncate">
                         <i class="fa-solid fa-circle-notch animate-spin text-teal-400 text-[11px] shrink-0" id="skeletonIcon"></i>
-                        <span id="skeletonTitle" class="font-mono font-medium text-teal-400 tracking-wide text-[11px]">Querying Marketplace Index & Extracting Products...</span>
+                        <span id="skeletonTitle" class="font-mono font-semibold text-teal-400 tracking-wide text-[11px]">Querying Marketplace Index & Extracting Products...</span>
                     </div>
                 </div>
                 <div class="flex items-center">
@@ -181,57 +178,139 @@
         </div>
 
         <div id="successNotice" class="hidden mt-5 p-4 bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md rounded-xl text-emerald-300 text-sm flex items-start gap-3 shadow-lg shadow-emerald-950/20">
-            <i class="fa-solid fa-circle-check mt-0.5 text-emerald-400"></i>
-            <span id="successMsg"></span>
+            <i class="fa-solid fa-circle-check mt-0.5 text-emerald-400 shrink-0"></i>
+            <span id="successMsg" class="leading-relaxed font-medium"></span>
         </div>
 
         <div id="error" class="hidden mt-5 p-4 bg-red-500/10 border border-red-500/20 backdrop-blur-md rounded-xl text-red-300 text-sm flex items-start gap-3 shadow-lg shadow-red-950/20">
-            <i class="fa-solid fa-circle-exclamation mt-0.5 text-red-400"></i>
-            <span id="errorMsg"></span>
+            <i class="fa-solid fa-circle-exclamation mt-0.5 text-red-400 shrink-0"></i>
+            <span id="errorMsg" class="leading-relaxed font-medium"></span>
         </div>
 
         <div id="resultContainer" class="hidden mt-5 border border-white/5 rounded-xl bg-slate-950/60 backdrop-blur-xl overflow-hidden shadow-2xl transition-all duration-300">
-            <div class="flex flex-col sm:flex-row justify-between sm:items-center px-5 py-3 bg-white/[0.02] gap-3">
-                <div class="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider select-none">
+            <div class="flex flex-col sm:flex-row justify-between sm:items-center px-5 py-3.5 bg-white/[0.02] border-b border-white/5 gap-3">
+                <div class="flex items-center gap-2.5 text-xs font-bold text-slate-400 uppercase tracking-wider select-none">
                     <span class="text-teal-400 font-mono text-base leading-none">{}</span>
-                    <span id="payloadTypeLabel">Marketplace Search JSON</span>
+                    <span id="payloadTypeLabel" class="tracking-wide">Marketplace Search JSON</span>
                 </div>
                 <div class="flex items-center gap-2">
                     <button id="downloadCsvBtn" onclick="downloadReviewsCsv()" 
-                            class="hidden text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-3.5 py-2 rounded-md border border-emerald-500/20 transition duration-150 flex items-center gap-1.5 active:scale-[0.95] shadow-sm">
-                        <i class="fa-solid fa-file-csv"></i>
+                            class="hidden text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-3.5 py-2 rounded-md border border-emerald-500/20 transition duration-150 flex items-center gap-1.5 active:scale-[0.95] shadow-sm font-semibold">
+                        <i class="fa-solid fa-file-csv text-sm"></i>
                         <span>Download CSV</span>
                     </button>
                     
                     <button onclick="copyToClipboard()" 
-                            class="text-xs bg-white/5 hover:bg-white/10 text-slate-300 px-3.5 py-2 rounded-md border border-white/5 transition duration-150 flex items-center gap-1.5 active:scale-[0.95] shadow-sm">
+                            class="text-xs bg-white/5 hover:bg-white/10 text-slate-300 px-3.5 py-2 rounded-md border border-white/5 transition duration-150 flex items-center gap-1.5 active:scale-[0.95] shadow-sm font-semibold">
                         <i id="copyIcon" class="fa-regular fa-copy"></i>
                         <span id="copyText">Copy Payload</span>
                     </button>
                 </div>
             </div>
             
-            <div class="h-[1px] w-full bg-white/5"></div>
-            <pre id="output" class="json-container text-xs md:text-[14px] font-mono leading-relaxed max-h-[500px] overflow-auto p-5 md:p-6 text-slate-300 whitespace-pre-wrap [word-break:break-word]"></pre>
+            <pre id="output" class="json-container text-xs md:text-[14px] font-mono leading-relaxed max-h-[500px] overflow-auto p-5 md:p-6 text-slate-300 whitespace-pre-wrap [word-break:break-word] bg-slate-950/20"></pre>
         </div>
 
     </div>
 
-    <div id="imageModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md opacity-0 transition-opacity duration-300" onclick="closeImageModal()">
+    <div class="w-full lg:w-80 glass-panel p-6 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] transition-all duration-300 shrink-0">
+        <div class="flex items-center gap-3 mb-6 pb-5 border-b border-white/[0.06]">
+            <div class="bg-gradient-to-tr from-teal-500 to-emerald-500 p-2.5 rounded-xl shadow-lg shadow-emerald-900/30 ring-1 ring-white/20">
+                <i class="fa-solid fa-chart-simple text-white text-base"></i>
+            </div>
+            <div>
+                <h2 class="text-base font-bold tracking-tight text-slate-100">Task Stats</h2>
+                <p class="text-[11px] text-slate-400 mt-0.5 font-medium">Session scrape task activity</p>
+            </div>
+        </div>
+
+        <div class="space-y-3">
+            <div onclick="openHistoryModal('completed')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15 cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500/25 transition duration-200 active:scale-[0.98]">
+                <div class="flex items-center gap-2.5 text-emerald-300/90 text-xs font-semibold">
+                    <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                    <span>Completed</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="statCompleted" class="font-mono font-black text-emerald-400 text-lg">0</span>
+                    <i class="fa-solid fa-chevron-right text-emerald-500/40 text-[10px]"></i>
+                </div>
+            </div>
+
+            <div onclick="openHistoryModal('failed')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-red-500/5 border border-red-500/15 cursor-pointer hover:bg-red-500/10 hover:border-red-500/25 transition duration-200 active:scale-[0.98]">
+                <div class="flex items-center gap-2.5 text-red-300/90 text-xs font-semibold">
+                    <i class="fa-solid fa-circle-exclamation text-red-400"></i>
+                    <span>Failed</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="statFailed" class="font-mono font-black text-red-400 text-lg">0</span>
+                    <i class="fa-solid fa-chevron-right text-red-400/40 text-[10px]"></i>
+                </div>
+            </div>
+
+            <div onclick="openHistoryModal('stopped')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-500/5 border border-amber-500/15 cursor-pointer hover:bg-amber-500/10 hover:border-amber-500/25 transition duration-200 active:scale-[0.98]">
+                <div class="flex items-center gap-2.5 text-amber-300/90 text-xs font-semibold">
+                    <i class="fa-solid fa-ban text-amber-400"></i>
+                    <span>Stopped</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="statStopped" class="font-mono font-black text-amber-400 text-lg">0</span>
+                    <i class="fa-solid fa-chevron-right text-amber-400/40 text-[10px]"></i>
+                </div>
+            </div>
+
+            <div class="h-[1px] w-full bg-white/[0.06] my-2"></div>
+
+            <div onclick="openHistoryModal('all')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.02] border border-white/5 cursor-pointer hover:bg-white/[0.05] hover:border-white/10 transition duration-200 active:scale-[0.98]">
+                <div class="flex items-center gap-2.5 text-slate-300 text-xs font-semibold">
+                    <i class="fa-solid fa-list-check text-purple-400"></i>
+                    <span>Total Tasks</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span id="statTotal" class="font-mono font-black text-slate-200 text-lg">0</span>
+                    <i class="fa-solid fa-chevron-right text-purple-400/40 text-[10px]"></i>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center justify-between mt-4 px-1">
+            <p class="text-[10px] text-slate-500 font-medium tracking-wide">Click a row to view log timeline</p>
+            <button onclick="clearAllTaskHistory()" class="text-[10px] font-semibold text-slate-500 hover:text-red-400 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-trash-can text-[9px]"></i> Clear
+            </button>
+        </div>
+    </div>
+    </div>
+
+    <div id="imageModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md opacity-0 transition-opacity duration-300" onclick="closeImageModal()">
         <div class="relative max-w-3xl w-full glass-panel rounded-2xl overflow-hidden shadow-2xl transform scale-95 transition-transform duration-300" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center px-5 py-3 border-b border-white/5 bg-slate-900/60">
                 <span class="text-xs font-mono text-slate-400 truncate max-w-xs md:max-w-md" id="modalImageTitle">Media Asset Preview</span>
                 <button onclick="closeImageModal()" class="text-slate-400 hover:text-white transition p-1 text-sm">
-                    <i class="fa-solid fa-xmark"></i>
+                    <i class="fa-solid fa-xmark text-base"></i>
                 </button>
             </div>
             <div class="p-6 flex items-center justify-center bg-slate-950/40 min-h-[250px] max-h-[70vh]">
                 <img id="modalImageTarget" src="" alt="Amazon Media Element" class="max-w-full max-h-[60vh] object-contain rounded-lg shadow-md border border-white/5 hidden" onload="this.classList.remove('hidden'); document.getElementById('modalImageSpinner').classList.add('hidden');">
                 <div id="modalImageSpinner" class="flex flex-col items-center gap-2.5 text-slate-400 text-xs font-mono">
-                    <i class="fa-solid fa-circle-notch animate-spin text-purple-400 text-[10px]"></i>
+                    <i class="fa-solid fa-circle-notch animate-spin text-purple-400 text-[11px]"></i>
                     <span>Loading Resource Asset...</span>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div id="historyModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md opacity-0 transition-opacity duration-300" onclick="closeHistoryModal()">
+        <div class="relative max-w-2xl w-full glass-panel rounded-2xl overflow-hidden shadow-2xl transform scale-95 transition-transform duration-300 max-h-[85vh] flex flex-col" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center px-5 py-4 border-b border-white/5 bg-slate-900/60 shrink-0">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <i id="historyModalIcon" class="fa-solid fa-list-check text-purple-400 text-sm shrink-0"></i>
+                    <span class="text-sm font-bold text-slate-100 truncate" id="historyModalTitle">Task History</span>
+                </div>
+                <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white transition p-1 text-sm shrink-0">
+                    <i class="fa-solid fa-xmark text-base"></i>
+                </button>
+            </div>
+            <div id="historyModalBody" class="overflow-y-auto p-5 space-y-2.5 json-container"></div>
         </div>
     </div>
 
@@ -242,6 +321,269 @@
             reviews: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null }
         };
         let activeMode = 'search'; 
+
+        let taskStats = { completed: 0, failed: 0, stopped: 0 };
+
+        // ---- Persistence (keeps stats/history across page refreshes) ----
+        const STORAGE_KEY_STATS = 'amzScraper_taskStats';
+        const STORAGE_KEY_HISTORY = 'amzScraper_taskHistory';
+        const STORAGE_KEY_COUNTER = 'amzScraper_taskHistoryCounter';
+        const MAX_PERSISTED_HISTORY = 200;
+
+        function loadPersistedState() {
+            try {
+                const savedStats = localStorage.getItem(STORAGE_KEY_STATS);
+                if (savedStats) {
+                    const parsed = JSON.parse(savedStats);
+                    taskStats.completed = parsed.completed || 0;
+                    taskStats.failed = parsed.failed || 0;
+                    taskStats.stopped = parsed.stopped || 0;
+                }
+                const savedHistory = localStorage.getItem(STORAGE_KEY_HISTORY);
+                if (savedHistory) {
+                    const parsedHistory = JSON.parse(savedHistory);
+                    if (Array.isArray(parsedHistory)) taskHistory = parsedHistory;
+                }
+                const savedCounter = localStorage.getItem(STORAGE_KEY_COUNTER);
+                if (savedCounter) taskHistoryCounter = parseInt(savedCounter, 10) || 0;
+            } catch (err) {
+                console.error("Failed to load persisted task stats/history:", err);
+            }
+        }
+
+        function persistState() {
+            try {
+                localStorage.setItem(STORAGE_KEY_STATS, JSON.stringify(taskStats));
+                localStorage.setItem(STORAGE_KEY_COUNTER, String(taskHistoryCounter));
+                localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(taskHistory.slice(0, MAX_PERSISTED_HISTORY)));
+            } catch (err) {
+                try {
+                    const lighter = taskHistory.slice(0, MAX_PERSISTED_HISTORY).map(item => (
+                        item.payload && item.payload.length > 20000 ? { ...item, payload: null, payloadTruncated: true } : item
+                    ));
+                    localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(lighter));
+                } catch (err2) {
+                    console.error("Unable to persist task history (storage quota exceeded):", err2);
+                }
+            }
+        }
+
+        function clearAllTaskHistory() {
+            if (!confirm('Clear all saved task stats and history? This cannot be undone.')) return;
+            taskStats = { completed: 0, failed: 0, stopped: 0 };
+            taskHistory = [];
+            taskHistoryCounter = 0;
+            try {
+                localStorage.removeItem(STORAGE_KEY_STATS);
+                localStorage.removeItem(STORAGE_KEY_HISTORY);
+                localStorage.removeItem(STORAGE_KEY_COUNTER);
+            } catch (err) {
+                console.error("Failed clearing persisted task stats:", err);
+            }
+            updateStatsUI();
+            const modal = document.getElementById('historyModal');
+            if (modal && !modal.classList.contains('hidden')) {
+                renderHistoryList();
+            }
+        }
+
+        function recordTaskOutcome(outcome) {
+            if (!outcome || !(outcome in taskStats)) return;
+            taskStats[outcome]++;
+            updateStatsUI();
+            persistState();
+        }
+
+        function updateStatsUI() {
+            const total = taskStats.completed + taskStats.failed + taskStats.stopped;
+            const statCompleted = document.getElementById('statCompleted');
+            const statFailed = document.getElementById('statFailed');
+            const statStopped = document.getElementById('statStopped');
+            const statTotal = document.getElementById('statTotal');
+            if (statCompleted) statCompleted.textContent = taskStats.completed;
+            if (statFailed) statFailed.textContent = taskStats.failed;
+            if (statStopped) statStopped.textContent = taskStats.stopped;
+            if (statTotal) statTotal.textContent = total;
+        }
+
+        // ---- Task History (per-operation detail log) ----
+        let taskHistory = [];
+        let taskHistoryCounter = 0;
+        let currentHistoryFilter = 'all';
+        let historyViewMode = 'list';
+
+        loadPersistedState();
+
+        const MODE_LABELS = { search: 'Search Products', product: 'Product Details', reviews: 'Product Reviews' };
+        const MODE_ICONS = { search: 'fa-magnifying-glass', product: 'fa-box-open', reviews: 'fa-comments' };
+        const OUTCOME_META = {
+            completed: { label: 'Completed', color: 'emerald', icon: 'fa-circle-check' },
+            failed: { label: 'Failed', color: 'red', icon: 'fa-circle-exclamation' },
+            stopped: { label: 'Stopped', color: 'amber', icon: 'fa-ban' }
+        };
+
+        updateStatsUI();
+
+        function pushTaskHistory(record) {
+            taskHistoryCounter++;
+            taskHistory.unshift({ id: taskHistoryCounter, ...record });
+            persistState();
+            if (document.getElementById('historyModal') && !document.getElementById('historyModal').classList.contains('hidden') && historyViewMode === 'list') {
+                renderHistoryList();
+            }
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function formatTimestamp(ts) {
+            return new Date(ts).toLocaleString(undefined, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        function formatDuration(ms) {
+            if (ms < 1000) return `${Math.max(0, ms)}ms`;
+            return `${(ms / 1000).toFixed(1)}s`;
+        }
+
+        function openHistoryModal(filterType) {
+            currentHistoryFilter = filterType;
+            renderHistoryList();
+            const modal = document.getElementById('historyModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                const p = modal.querySelector('.relative');
+                if (p) p.classList.remove('scale-95');
+            }, 10);
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeHistoryModal() {
+            const modal = document.getElementById('historyModal');
+            if (!modal || modal.classList.contains('hidden')) return;
+            modal.classList.add('opacity-0');
+            const p = modal.querySelector('.relative');
+            if (p) p.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                document.body.style.overflow = '';
+            }, 300);
+        }
+
+        function renderHistoryList() {
+            historyViewMode = 'list';
+            const body = document.getElementById('historyModalBody');
+            const titleEl = document.getElementById('historyModalTitle');
+            const iconEl = document.getElementById('historyModalIcon');
+
+            const filterMeta = currentHistoryFilter === 'all'
+                ? { label: 'All Tasks', icon: 'fa-list-check', color: 'purple' }
+                : { label: OUTCOME_META[currentHistoryFilter].label + ' Tasks', icon: OUTCOME_META[currentHistoryFilter].icon, color: OUTCOME_META[currentHistoryFilter].color };
+
+            titleEl.textContent = filterMeta.label;
+            iconEl.className = `fa-solid ${filterMeta.icon} text-${filterMeta.color}-400 text-sm shrink-0`;
+
+            const items = currentHistoryFilter === 'all' ? taskHistory : taskHistory.filter(t => t.outcome === currentHistoryFilter);
+
+            if (items.length === 0) {
+                body.innerHTML = `<div class="flex flex-col items-center justify-center gap-2.5 py-12 text-slate-500 text-xs font-mono">
+                    <i class="fa-solid fa-inbox text-2xl"></i>
+                    <span>No tasks recorded yet.</span>
+                </div>`;
+                return;
+            }
+
+            body.innerHTML = items.map(item => {
+                const om = OUTCOME_META[item.outcome];
+                const mi = MODE_ICONS[item.mode] || 'fa-gear';
+                return `
+                <div onclick="showTaskDetail(${item.id})" class="cursor-pointer p-3.5 rounded-xl bg-white/[0.01] hover:bg-white/[0.04] border border-white/5 hover:border-white/10 transition duration-200 flex items-center justify-between gap-3 active:scale-[0.99]">
+                    <div class="flex items-center gap-3 min-w-0">
+                        <div class="shrink-0 w-8 h-8 rounded-lg bg-${om.color}-500/10 border border-${om.color}-500/20 flex items-center justify-center">
+                            <i class="fa-solid ${om.icon} text-${om.color}-400 text-xs"></i>
+                        </div>
+                        <div class="min-w-0">
+                            <div class="text-xs font-medium text-slate-200 truncate max-w-[300px]">
+                                <i class="fa-solid ${mi} text-slate-500 mr-1.5 text-[10px]"></i>${escapeHtml(item.query)}
+                            </div>
+                            <div class="text-[10px] text-slate-500 font-mono mt-0.5">${formatTimestamp(item.startedAt)} &middot; ${formatDuration(item.finishedAt - item.startedAt)}</div>
+                        </div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-600 text-[10px] shrink-0"></i>
+                </div>`;
+            }).join('');
+        }
+
+        function showTaskDetail(id) {
+            const item = taskHistory.find(t => t.id === id);
+            if (!item) return;
+            historyViewMode = 'detail';
+
+            const body = document.getElementById('historyModalBody');
+            const titleEl = document.getElementById('historyModalTitle');
+            const iconEl = document.getElementById('historyModalIcon');
+            const om = OUTCOME_META[item.outcome];
+
+            titleEl.textContent = 'Task Details';
+            iconEl.className = `fa-solid ${om.icon} text-${om.color}-400 text-sm shrink-0`;
+
+            let payloadBlock = '';
+            if (item.payload) {
+                payloadBlock = `
+                <div class="mt-1">
+                    <div class="text-[10px] uppercase tracking-wider text-slate-500 font-bold mb-1.5">Raw Payload</div>
+                    <pre class="json-container text-[11px] font-mono leading-relaxed max-h-[260px] overflow-auto p-3.5 rounded-lg bg-slate-950/60 border border-white/5 text-slate-300 whitespace-pre-wrap [word-break:break-word]">${syntaxHighlightJson(item.payload)}</pre>
+                </div>`;
+            } else if (item.payloadTruncated) {
+                payloadBlock = `
+                <div class="mt-1 p-3 rounded-lg bg-slate-900/40 border border-white/5 text-[11px] text-slate-500 font-mono flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info"></i>
+                    <span>Raw payload was too large to keep in saved history and was dropped to save space.</span>
+                </div>`;
+            }
+
+            body.innerHTML = `
+                <button onclick="renderHistoryList()" class="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition mb-4">
+                    <i class="fa-solid fa-arrow-left text-[10px]"></i> Back to list
+                </button>
+
+                <div class="flex items-center gap-2.5 mb-4">
+                    <span class="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-${om.color}-500/10 text-${om.color}-300 border border-${om.color}-500/20">${om.label}</span>
+                    <span class="text-[10px] font-mono text-slate-500"><i class="fa-solid ${MODE_ICONS[item.mode] || 'fa-gear'} mr-1"></i>${MODE_LABELS[item.mode] || item.mode}</span>
+                </div>
+
+                <div class="space-y-0.5 text-xs mb-4">
+                    <div class="flex justify-between gap-3 py-2.5 border-b border-white/5">
+                        <span class="text-slate-500 shrink-0">Query / URL</span>
+                        <span class="text-slate-200 font-mono text-right break-all">${escapeHtml(item.query)}</span>
+                    </div>
+                    <div class="flex justify-between gap-3 py-2.5 border-b border-white/5">
+                        <span class="text-slate-500 shrink-0">Endpoint</span>
+                        <span class="text-slate-300 font-mono text-right break-all">${escapeHtml(item.endpoint)}</span>
+                    </div>
+                    <div class="flex justify-between gap-3 py-2.5 border-b border-white/5">
+                        <span class="text-slate-500 shrink-0">Started</span>
+                        <span class="text-slate-300 font-mono text-right">${formatTimestamp(item.startedAt)}</span>
+                    </div>
+                    <div class="flex justify-between gap-3 py-2.5 border-b border-white/5">
+                        <span class="text-slate-500 shrink-0">Finished</span>
+                        <span class="text-slate-300 font-mono text-right">${formatTimestamp(item.finishedAt)}</span>
+                    </div>
+                    <div class="flex justify-between gap-3 py-2.5 border-b border-white/5">
+                        <span class="text-slate-500 shrink-0">Duration</span>
+                        <span class="text-slate-300 font-mono text-right">${formatDuration(item.finishedAt - item.startedAt)}</span>
+                    </div>
+                    ${item.resultSummary ? `<div class="flex justify-between gap-3 py-2.5 border-b border-white/5"><span class="text-slate-500 shrink-0">Result</span><span class="text-emerald-300 font-mono text-right break-all">${escapeHtml(item.resultSummary)}</span></div>` : ''}
+                    ${item.errorMessage ? `<div class="flex justify-between gap-3 py-2.5 border-b border-white/5"><span class="text-slate-500 shrink-0">Reason</span><span class="text-${om.color}-300 font-mono text-right break-all">${escapeHtml(item.errorMessage)}</span></div>` : ''}
+                </div>
+
+                ${payloadBlock}
+            `;
+        }
 
         function syncUrlInput(val) {
             stateCache[activeMode].inputVal = val;
@@ -276,8 +618,8 @@
             if (errorContainer) errorContainer.classList.add('hidden');
             document.getElementById('successNotice')?.classList.add('hidden');
 
-            const defaultTabStyle = "flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200";
-            const activeTabStyle = "flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow";
+            const defaultTabStyle = "flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]";
+            const activeTabStyle = "flex-1 text-xs md:text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-300 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-indigo-950/40";
             
             modeProductBtn.className = defaultTabStyle;
             modeSearchBtn.className = defaultTabStyle;
@@ -322,7 +664,7 @@
             if (stateCache[mode].isScraping) {
                 btn.disabled = true;
                 btn.classList.add('opacity-50', 'cursor-not-allowed');
-                loader.classList.remove('hidden');
+                if (loader) loader.classList.remove('hidden');
                 setupSkeletonText(mode);
                 skeletonContainer.classList.remove('hidden');
                 resultContainer.classList.add('hidden');
@@ -330,21 +672,22 @@
             } else {
                 btn.disabled = false;
                 btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                loader.classList.add('hidden');
-                skeletonContainer.classList.add('hidden');
+                if (loader) loader.classList.add('hidden');
+                if (skeletonContainer) skeletonContainer.classList.add('hidden');
                 
                 if (stateCache[mode].currentPayload) {
                     document.getElementById('output').innerHTML = syntaxHighlightJson(stateCache[mode].currentPayload);
-                    resultContainer.classList.remove('hidden');
+                    if (resultContainer) resultContainer.classList.remove('hidden');
+                    
                     if (mode === 'reviews' && stateCache.reviews.scrapedRawData?.reviews?.length > 0) {
-                        downloadCsvBtn.classList.remove('hidden');
+                        if (downloadCsvBtn) downloadCsvBtn.classList.remove('hidden');
                     } else {
-                        downloadCsvBtn.classList.add('hidden');
+                        if (downloadCsvBtn) downloadCsvBtn.classList.add('hidden');
                     }
                     resetCopyButtonState();
                 } else {
-                    resultContainer.classList.add('hidden');
-                    downloadCsvBtn.classList.add('hidden');
+                    if (resultContainer) resultContainer.classList.add('hidden');
+                    if (downloadCsvBtn) downloadCsvBtn.classList.add('hidden');
                 }
             }
         }
@@ -439,7 +782,10 @@
         }
 
         document.addEventListener('keydown', function(event) {
-            if (event.key === "Escape") closeImageModal();
+            if (event.key === "Escape") {
+                closeImageModal();
+                closeHistoryModal();
+            }
         });
 
         async function abortActiveTask() {
@@ -452,7 +798,6 @@
                     method: 'POST'
                 });
                 if (response.ok) {
-                    // Instantly hide upper informational panels when explicitly cancelled
                     document.getElementById('searchNotice').classList.add('hidden');
                     document.getElementById('reviewsNotice').classList.add('hidden');
 
@@ -470,6 +815,10 @@
 
         async function executeScrape() {
             const currentWorkingMode = activeMode; 
+            let taskOutcome = null;
+            let taskResultSummary = "";
+            let taskErrorMessage = "";
+            const taskStartedAt = Date.now();
             const btn = document.getElementById('scrapeBtn');
             const loader = document.getElementById('loader');
             const errorContainer = document.getElementById('error');
@@ -488,7 +837,6 @@
                 return;
             }
 
-            // Intercept URLs pasted into Search mode
             if (currentWorkingMode === 'search' && (activeInputVal.includes('http://') || activeInputVal.includes('https://') || activeInputVal.includes('amazon.'))) {
                 if (errorMsg && errorContainer) {
                     errorMsg.textContent = "Please provide descriptive search keywords (e.g., 'Wireless Headphones') instead of a direct web URL.";
@@ -556,11 +904,26 @@
                 stateCache[currentWorkingMode].scrapedRawData = data; 
                 let rawPayload = JSON.stringify(data, null, 4);
                 stateCache[currentWorkingMode].currentPayload = rawPayload.replace(/("rating(?:s)?":\s*)(\d+)\b(?!\.)/g, "$1$2.0");
+                taskOutcome = 'completed';
+
+                if (currentWorkingMode === 'search') {
+                    const count = data.total_products ?? (Array.isArray(data.products) ? data.products.length : 0);
+                    taskResultSummary = `${count} product${count === 1 ? '' : 's'} found`;
+                } else if (currentWorkingMode === 'reviews') {
+                    const count = Array.isArray(data.reviews) ? data.reviews.length : 0;
+                    taskResultSummary = `${count} review${count === 1 ? '' : 's'} extracted`;
+                } else if (currentWorkingMode === 'product') {
+                    taskResultSummary = data.title ? String(data.title).slice(0, 100) : 'Product data extracted';
+                }
 
             } catch (err) {
+                const msgText = err.message.toLowerCase();
+                const isCancelled = msgText.includes("cancel") || msgText.includes("abort") || msgText.includes("closed by the user");
+                taskOutcome = isCancelled ? 'stopped' : 'failed';
+                taskErrorMessage = isCancelled ? "Cancelled by user request." : err.message;
+
                 if (activeMode === currentWorkingMode) {
-                    const msgText = err.message.toLowerCase();
-                    if (msgText.includes("cancel") || msgText.includes("abort") || msgText.includes("closed by the user")) {
+                    if (isCancelled) {
                         document.getElementById('searchNotice').classList.add('hidden');
                         document.getElementById('reviewsNotice').classList.add('hidden');
                         
@@ -576,6 +939,18 @@
                     }
                 }
             } finally {
+                recordTaskOutcome(taskOutcome);
+                pushTaskHistory({
+                    mode: currentWorkingMode,
+                    query: activeInputVal.trim(),
+                    endpoint: targetEndpoint,
+                    outcome: taskOutcome,
+                    startedAt: taskStartedAt,
+                    finishedAt: Date.now(),
+                    resultSummary: taskResultSummary,
+                    errorMessage: taskErrorMessage,
+                    payload: taskOutcome === 'completed' ? stateCache[currentWorkingMode].currentPayload : null
+                });
                 stateCache[currentWorkingMode].isScraping = false;
 
                 if (activeMode === currentWorkingMode) {
@@ -586,7 +961,6 @@
                     
                     const hasSuccessNotice = !document.getElementById('successNotice').classList.contains('hidden');
                     
-                    // Show notice helpers conditionally ONLY if no successful payload or user cancel operation is active
                     if (activeMode === 'search' && !stateCache.search.currentPayload && !hasSuccessNotice) {
                         document.getElementById('searchNotice').classList.remove('hidden');
                     }
@@ -601,6 +975,8 @@
                         if (activeMode === 'reviews' && stateCache.reviews.scrapedRawData?.reviews?.length > 0 && downloadCsvBtn) {
                             downloadCsvBtn.classList.remove('hidden');
                         }
+                    } else {
+                        if (resultContainer) resultContainer.classList.add('hidden');
                     }
                     resetCopyButtonState();
                 }
