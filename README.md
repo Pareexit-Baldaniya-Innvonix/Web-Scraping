@@ -63,7 +63,8 @@ WEB-SCRAPING/
   - **Ratings count**
   - **Description** (feature bullet points preferred; falls back to product description paragraph)
   - **Variants** (Color, Size, Style, etc.) — multi-strategy extraction with `a-state` JSON fallback
-  - **Reviews** (on-page reviews from the product listing, captured inline during product scrape)
+
+> **Note:** `Scraper` also has a `reviews_details()` helper capable of parsing on-page reviews from a product's own listing, but it is not currently wired into `scraping_data()` / `/api/scrape`, so product-page scrapes do **not** include a `reviews` field. Use the dedicated `/api/scrape/reviews` endpoint (Playwright-driven, paginated) to collect reviews for a product.
 
 - **Search Products** powered by Playwright — searches Amazon by keyword and paginates by clicking "Next" until no further page is found or the `THRESHOLD_LIMIT` item cap is reached, deduplicating results by ASIN and saving output to `output/searches/search_{query}.json`. Each search result includes product title, price, direct product link, and estimated delivery days.
 
@@ -190,7 +191,7 @@ Open `http://127.0.0.1:8000` in your browser to use the **web dashboard UI**.
 
 Navigate to `http://127.0.0.1:8000` in your browser. The dashboard provides three modes toggled from the top tab bar:
 
-- **Product Details** tab — calls `/api/scrape` with a product URL and displays the full product JSON including title, images, price, ratings, description, variants, and on-page reviews.
+- **Product Details** tab — calls `/api/scrape` with a product URL and displays the full product JSON including title, images, price, ratings, description, and variants (no reviews — use the **Product Reviews** tab for that).
 
 - **Search Products** tab — calls `/api/search` with a keyword query, launches a Chromium browser on the server (headless by default) to paginate through search result pages until no further page is found or `THRESHOLD_LIMIT` products are collected, and returns all collected products as JSON. Each result includes the product title, price, Amazon product link, and estimated delivery duration in days.
 
@@ -201,6 +202,12 @@ Navigate to `http://127.0.0.1:8000` in your browser. The dashboard provides thre
 - A **Copy Payload** button to copy the raw JSON to clipboard
 
 - A **Cancel Task** button that appears while a scrape is in progress — calls `POST /api/cancel/{task_key}` to abort the active background task for the current mode
+
+- **Task Stats & History panel** (sidebar) — tracks every run made from the dashboard in the browser's `localStorage` (persists across page refreshes, up to 200 entries):
+  - Live counters for **Completed**, **Failed**, **Stopped**, and **Total Tasks**
+  - Clicking any counter opens a **Task History** modal filtered to that outcome (or all tasks); clicking an individual entry drills into a detail view showing the query/URL, endpoint, start/finish timestamps, duration, result summary or error reason, and the raw JSON payload (payloads over ~20KB are dropped from storage to stay under the browser quota, with a note shown in their place)
+  - A **Clear** button wipes all saved stats and history after a confirmation prompt
+  - This history is purely client-side (per browser, per machine) — it is not persisted or read by the FastAPI backend, so cancelling/refreshing/using a different browser will not share or preserve it
 
 > **Note:** Product Reviews and Search Products both drive a Chromium browser on the machine running the server. With the default `HEADLESS = True` setting the browser window is not visible; if a CAPTCHA is encountered, it simply pauses for `CAPTCHA_WAIT` seconds (default: 3 seconds, configurable in `constants.py`) and then continues, whether or not the challenge was resolved. To manually solve a CAPTCHA or OTP prompt, set `HEADLESS = False` in `src/config/constants.py` so the browser window is visible. If Amazon redirects to a login page and credentials are configured in `.env`, sign-in is handled automatically.
 
@@ -265,7 +272,9 @@ No request body is needed — the `task_key` is sent directly in the URL path. F
 
 ### `POST /api/scrape`
 
-Scrapes product details from a given Amazon India product URL using `requests` + `BeautifulSoup`. Also captures any reviews visible on the product page itself.
+Scrapes product details from a given Amazon India product URL using `requests` + `BeautifulSoup`.
+
+> This endpoint does **not** return reviews — the `Product` model has no `reviews` field. For reviews, call `POST /api/scrape/reviews` instead.
 
 **Request Body (JSON):**
 ```json
@@ -277,6 +286,7 @@ Scrapes product details from a given Amazon India product URL using `requests` +
 **Success Response — `200 OK`:**
 ```json
 {
+    "asin": "B0GL8FNY5G",
     "title": "Samsung Galaxy S25 Ultra 5G (Titanium Black, 12GB RAM, 256GB Storage)",
     "image": [
         "https://m.media-amazon.com/images/I/71example1.jpg",
@@ -294,18 +304,6 @@ Scrapes product details from a given Amazon India product URL using `requests` +
         {
             "type": "Size",
             "options": ["12GB + 256GB", "12GB + 512GB"]
-        }
-    ],
-    "reviews": [
-        {
-            "review_number": 1,
-            "reviewer_name": "Rahul S.",
-            "review_date": "15 April 2025",
-            "review_location": "India",
-            "review_title": "Excellent phone, worth every rupee",
-            "rating": 5.0,
-            "review_body": "Battery life is outstanding and the camera quality is superb...",
-            "review_helpful": "12 people found this helpful"
         }
     ]
 }
@@ -495,9 +493,10 @@ Neither the reviews scraper nor the product search has a hardcoded page cap in c
    - **Ratings:** tries `acrPopover` then `a-icon-alt`.
    - **Description:** tries `feature-bullets` span items first, then falls back to the `productDescription` div.
    - **Variants:** reads `inline-twister-row-*` divs with title/img-alt/swatch-span/text priority, falling back to the `desktop-twister-sort-filter-data` `a-state` JSON embedded in the page.
-   - **Reviews:** collects all `[data-hook="review"]` blocks from the product page.
 
 6. **Output** — `Product` is a Pydantic model; `.to_dict()` serializes it and FastAPI returns it as a JSON response. The raw HTML is saved to `output/source.html` for debugging (this single file is overwritten on every `/api/scrape` call, regardless of ASIN).
+
+> `Scraper.reviews_details()` exists and can parse `[data-hook="review"]` blocks from a product page, but `scraping_data()` does not currently call it, so `/api/scrape` responses never include reviews. Use `/api/scrape/reviews` for reviews.
 
 ### Search Products (`/api/search`)
 
@@ -551,6 +550,8 @@ The sign-in flow handles:
 - **Password-only** — detects a pre-filled email page and fills only the password
 
 - **OTP / MFA** — if redirected to an MFA or mobile verification page after login (URL containing `mfa`, `auth-mfa`, `verification`, or `ap/cvf`), the scraper pauses for `CAPTCHA_WAIT` seconds (default: 3 seconds, configurable in `constants.py`) to allow manual OTP entry in the browser window
+
+- **Unrecognized email ("new user") prompt** — if Amazon indicates the email isn't recognized (e.g. "It looks like you are new to Amazon"), the scraper attempts to click through to the create-account/continue prompt and then pauses automation for a fixed **120 seconds** to allow manual account verification/registration in the visible browser window (requires `HEADLESS = False`) before resuming
 
 After a successful login, the scraper automatically navigates back to the original target URL and resumes scraping. Login state is persisted in the session directory so subsequent runs for the same ASIN or query will not need to re-authenticate.
 
