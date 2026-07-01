@@ -71,7 +71,7 @@ async def _run_cancellable(task_key: str, coro, request: Request):
         task.cancel()
         raise HTTPException(
             status_code=499,
-            detail="Request closed by the user.",
+            detail="Task successfully aborted on user request.",
         )
     finally:
         _active_tasks.pop(task_key, None)
