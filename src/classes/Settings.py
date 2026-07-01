@@ -1,15 +1,22 @@
 # ----- library import -----
-import os
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
 
-    ENV: str = os.getenv("ENV", "development")
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "DEBUG")
-    AMAZON_EMAIL: str = os.getenv("AMAZON_EMAIL", "")
-    AMAZON_PASSWORD: str = os.getenv("AMAZON_PASSWORD", "")
-    THRESHOLD_LIMIT: int = os.getenv("THRESHOLD_LIMIT", 200)
+    # ----- ENV config -----
+    ENV: str = Field(..., env="ENV")
+
+    # ----- log config -----
+    LOG_LEVEL: str = Field(..., env="LOG_LEVEL")
+
+    # ----- login credentials -----
+    AMAZON_EMAIL: str = Field(..., env="AMAZON_EMAIL")
+    AMAZON_PASSWORD: str = Field(..., env="AMAZON_PASSWORD")
+
+    # ----- limit config -----
+    THRESHOLD_LIMIT: int = Field(default=200, env="THRESHOLD_LIMIT")
 
 
 settings = Settings()
