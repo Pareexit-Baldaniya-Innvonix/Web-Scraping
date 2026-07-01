@@ -237,6 +237,12 @@ async def scrape_reviews(body: ScrapeRequest, request: Request):
         )
     except HTTPException:
         raise
+    except RuntimeError as exc:
+        logger.error("Scraping execution halted by internal execution error: %s", str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Scraping context suspended: {str(exc)}"
+        )
     except Exception as exc:
         logger.exception(
             "Playwright async pagination engine driver raised an unhandled tracking operation crash exception: %s",
