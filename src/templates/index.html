@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Amazon Web Scraper</title>
-    <link rel="icon" href="/static/favicon.png" type="image/png">
+    <link class="content-v" rel="icon" href="/static/favicon.png" type="image/png">
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -180,6 +180,11 @@
             </div>
         </div>
 
+        <div id="successNotice" class="hidden mt-5 p-4 bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md rounded-xl text-emerald-300 text-sm flex items-start gap-3 shadow-lg shadow-emerald-950/20">
+            <i class="fa-solid fa-circle-check mt-0.5 text-emerald-400"></i>
+            <span id="successMsg"></span>
+        </div>
+
         <div id="error" class="hidden mt-5 p-4 bg-red-500/10 border border-red-500/20 backdrop-blur-md rounded-xl text-red-300 text-sm flex items-start gap-3 shadow-lg shadow-red-950/20">
             <i class="fa-solid fa-circle-exclamation mt-0.5 text-red-400"></i>
             <span id="errorMsg"></span>
@@ -269,6 +274,7 @@
             const inputIcon = document.getElementById('inputIcon');
 
             if (errorContainer) errorContainer.classList.add('hidden');
+            document.getElementById('successNotice')?.classList.add('hidden');
 
             const defaultTabStyle = "flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200";
             const activeTabStyle = "flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow";
@@ -446,11 +452,15 @@
                     method: 'POST'
                 });
                 if (response.ok) {
-                    const errorContainer = document.getElementById('error');
-                    const errorMsg = document.getElementById('errorMsg');
-                    if (errorMsg && errorContainer) {
-                        errorMsg.textContent = "Operation explicitly cancelled by user request.";
-                        errorContainer.classList.remove('hidden');
+                    // Instantly hide upper informational panels when explicitly cancelled
+                    document.getElementById('searchNotice').classList.add('hidden');
+                    document.getElementById('reviewsNotice').classList.add('hidden');
+
+                    const successContainer = document.getElementById('successNotice');
+                    const successMsg = document.getElementById('successMsg');
+                    if (successMsg && successContainer) {
+                        successMsg.textContent = "Task successfully aborted on user request.";
+                        successContainer.classList.remove('hidden');
                     }
                 }
             } catch (err) {
@@ -468,12 +478,21 @@
             const skeletonContainer = document.getElementById('skeletonContainer');
             const activeInputVal = stateCache[currentWorkingMode].inputVal;
 
-            if (!activeInputVal) {
+            if (!activeInputVal || !activeInputVal.trim()) {
                 const term = currentWorkingMode === 'search' ? "search query" : "valid Amazon URL";
                 if (errorMsg && errorContainer) {
                     errorMsg.textContent = `Please provide a ${term} before extracting data.`;
                     errorContainer.classList.remove('hidden');
                     setTimeout(() => { errorContainer.classList.add('hidden'); }, 3000);
+                }
+                return;
+            }
+
+            // Intercept URLs pasted into Search mode
+            if (currentWorkingMode === 'search' && (activeInputVal.includes('http://') || activeInputVal.includes('https://') || activeInputVal.includes('amazon.'))) {
+                if (errorMsg && errorContainer) {
+                    errorMsg.textContent = "Please provide descriptive search keywords (e.g., 'Wireless Headphones') instead of a direct web URL.";
+                    errorContainer.classList.remove('hidden');
                 }
                 return;
             }
@@ -485,17 +504,17 @@
             if (currentWorkingMode === 'product') {
                 const cleanUrl = activeInputVal.trim();
                 targetEndpoint = '/api/scrape';
-                payloadBody = { url: activeInputVal };
+                payloadBody = { url: cleanUrl };
                 taskKey = `scrape:${cleanUrl}`;
             } else if (currentWorkingMode === 'search') {
                 const cleanQuery = activeInputVal.trim();
                 targetEndpoint = '/api/search';
-                payloadBody = { query: activeInputVal };
+                payloadBody = { query: cleanQuery };
                 taskKey = `search:${cleanQuery}`;
             } else if (currentWorkingMode === 'reviews') {
                 const cleanUrl = activeInputVal.trim();
                 targetEndpoint = '/api/scrape/reviews';
-                payloadBody = { url: activeInputVal };
+                payloadBody = { url: cleanUrl };
                 taskKey = `reviews:${cleanUrl}`;
             }
 
@@ -509,6 +528,7 @@
             if (loader) loader.classList.remove('hidden');
             if (errorContainer) errorContainer.classList.add('hidden');
             
+            document.getElementById('successNotice')?.classList.add('hidden');
             document.getElementById('searchNotice').classList.add('hidden');
             document.getElementById('reviewsNotice').classList.add('hidden');
             if (resultContainer) resultContainer.classList.add('hidden');
@@ -538,9 +558,22 @@
                 stateCache[currentWorkingMode].currentPayload = rawPayload.replace(/("rating(?:s)?":\s*)(\d+)\b(?!\.)/g, "$1$2.0");
 
             } catch (err) {
-                if (activeMode === currentWorkingMode && errorMsg && errorContainer) {
-                    errorMsg.textContent = err.message;
-                    errorContainer.classList.remove('hidden');
+                if (activeMode === currentWorkingMode) {
+                    const msgText = err.message.toLowerCase();
+                    if (msgText.includes("cancel") || msgText.includes("abort") || msgText.includes("closed by the user")) {
+                        document.getElementById('searchNotice').classList.add('hidden');
+                        document.getElementById('reviewsNotice').classList.add('hidden');
+                        
+                        const successContainer = document.getElementById('successNotice');
+                        const successMsg = document.getElementById('successMsg');
+                        if (successMsg && successContainer) {
+                            successMsg.textContent = "Task successfully aborted on user request.";
+                            successContainer.classList.remove('hidden');
+                        }
+                    } else if (errorMsg && errorContainer) {
+                        errorMsg.textContent = err.message;
+                        errorContainer.classList.remove('hidden');
+                    }
                 }
             } finally {
                 stateCache[currentWorkingMode].isScraping = false;
@@ -551,10 +584,13 @@
                     if (loader) loader.classList.add('hidden');
                     if (skeletonContainer) skeletonContainer.classList.add('hidden');
                     
-                    if (activeMode === 'search' && !stateCache.search.currentPayload) {
+                    const hasSuccessNotice = !document.getElementById('successNotice').classList.contains('hidden');
+                    
+                    // Show notice helpers conditionally ONLY if no successful payload or user cancel operation is active
+                    if (activeMode === 'search' && !stateCache.search.currentPayload && !hasSuccessNotice) {
                         document.getElementById('searchNotice').classList.remove('hidden');
                     }
-                    if (activeMode === 'reviews' && !stateCache.reviews.currentPayload) {
+                    if (activeMode === 'reviews' && !stateCache.reviews.currentPayload && !hasSuccessNotice) {
                         document.getElementById('reviewsNotice').classList.remove('hidden');
                     }
 
@@ -569,7 +605,6 @@
                     resetCopyButtonState();
                 }
                 
-                // Fixed: The key is wiped AFTER handling final UI logic so cancel requests can succeed anytime during execution
                 stateCache[currentWorkingMode].activeTaskKey = null;
             }
         }
