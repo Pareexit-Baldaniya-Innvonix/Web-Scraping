@@ -708,11 +708,64 @@ class Scraper:
             if await page.locator(continue_sel).count() > 0:
                 await page.locator(continue_sel).click()
 
-            await page.wait_for_selector(password_sel, state="visible", timeout=15000)
+            # ----- FIX: Dynamically wait for either password OR a new user challenge -----
+            logger.info("Waiting for password screen or validation shift...")
+            
+            new_user_selectors = [
+                "input.a-button-input[aria-labelledby*='intention']",
+                "text=Create account",
+                "text=Proceed to create an account",
+                "text=We cannot find an account with that email address"
+            ]
+            
+            is_new_user = False
+            password_visible = False
+            
+            for _ in range(30): 
+                if await page.locator(password_sel).is_visible():
+                    password_visible = True
+                    break
+                
+                for selector in new_user_selectors:
+                    if await page.locator(selector).count() > 0 and await page.locator(selector).first.is_visible():
+                        is_new_user = True
+                        break
+                if is_new_user:
+                    break
+                await asyncio.sleep(0.5)
+
+            # ----- Handle the 'New User / Unrecognized Email' branch -----
+            if is_new_user:
+                logger.warning("Email not recognized. 'It looks like you are new to Amazon' state or warning detected.")
+                
+                create_account_btn = page.locator("input.a-button-input[aria-labelledby*='intention']").or_(
+                    page.locator("input#continue[type='submit']")
+                ).or_(
+                    page.get_by_text("Proceed to create an account")
+                )
+                
+                if await create_account_btn.count() > 0:
+                    try:
+                        await create_account_btn.first.click(force=True)
+                        await page.wait_for_load_state("domcontentloaded")
+                    except Exception:
+                        pass
+                
+                logger.info("Pausing automation for 120 seconds for manual intervention / account registration.")
+                await asyncio.sleep(120) 
+                
+                if post_login_url:
+                    await page.goto(post_login_url, wait_until="domcontentloaded", timeout=60000)
+                return
+
+            if not password_visible:
+                raise TimeoutError("Timed out waiting for password field to appear or new user prompt to step in.")
+
+            # ----- Standard Flow: Log and fill password -----
             password_locator = page.locator(password_sel)
+            await password_locator.wait_for(state="visible", timeout=5000)
             await password_locator.fill("")
             
-            # ----- log and fill password -----
             logger.info("Entering password...")
             await password_locator.fill(password)
             logger.info("Password entered successfully!")
@@ -743,7 +796,7 @@ class Scraper:
 
         if await Scraper.is_login_page(page):
             logger.error("Authentication check failed — Session stuck on authentication interface.")
-            return False
+            raise RuntimeError("Authentication check failed — Session stuck on authentication interface.")
 
         logger.info("Authentication validated successfully.")
         return True
@@ -812,7 +865,12 @@ class Scraper:
                         logger.info("ASIN %s: Reviews extraction worker caught cancellation signal. Halting execution gracefully.", asin)
                         raise
 
-                    await Scraper.ensure_logged_in(page, reviews_url)
+                    try:
+                        await Scraper.ensure_logged_in(page, reviews_url)
+                    except RuntimeError as auth_err:
+                        logger.error("Stopping reviews scraper loop due to fatal authentication error.")
+                        raise
+
                     logger.info("[Reviews ASIN: %s] Started scraping page %d...", asin, page_num)
 
                     is_captcha_page = await page.locator("form[action*='captcha'], input[id='captchacharacters']").count() > 0
@@ -1238,8 +1296,6 @@ class Scraper:
 
         try:
             title = self.title_details(soup)
-            reviews = self.reviews_details(soup)
-            total_reviews_count = len(reviews) if reviews else 0
 
             product = Product(
                 asin=asin,
@@ -1250,8 +1306,6 @@ class Scraper:
                 ratings_count=self.ratings_count(soup),
                 description=self.description_details(soup, title),
                 variants=self.variants_details(soup),
-                total_reviews=total_reviews_count,
-                reviews=reviews,
             )
             return ScrapeResult(product=product, success=True, reason=None, detail="")
 
