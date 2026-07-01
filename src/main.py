@@ -240,7 +240,7 @@ async def scrape_reviews(body: ScrapeRequest, request: Request):
     except RuntimeError as exc:
         logger.error("Scraping execution halted by internal execution error: %s", str(exc))
         raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Scraping context suspended: {str(exc)}"
         )
     except Exception as exc:
