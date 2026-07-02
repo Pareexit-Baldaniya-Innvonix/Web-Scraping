@@ -5,7 +5,6 @@ import json
 import os
 import random
 import re
-import time
 from datetime import date as DateType
 from typing import Any, Dict, List, Optional, Tuple, Union
 from urllib.parse import parse_qs, quote_plus, urlparse, urlunparse
@@ -13,13 +12,13 @@ from urllib.parse import parse_qs, quote_plus, urlparse, urlunparse
 from bs4 import BeautifulSoup
 from playwright_stealth.stealth import Stealth
 from playwright.async_api import async_playwright
+from playwright.async_api import Error as PlaywrightError
 import requests
 
 # ----- local import -----
 from src.config.constants import (
     CAPTCHA_WAIT,
     HEADERS,
-    HEADLESS,
     MONTH_MAP,
     NEXT_PAGE_SELECTORS,
     OUTPUT_DIR,
@@ -34,6 +33,7 @@ from src.config.selectors import SELECTORS
 from src.utils.logger import get_logger
 from .Product import Product
 from .Review import Review
+from .BrowserManager import BrowserManager
 from .ScrapeFailReason import ScrapeFailReason
 from .ScrapeResult import ScrapeResult
 from .Settings import settings
@@ -839,23 +839,24 @@ class Scraper:
         page_num = 1
 
         async with async_playwright() as p:
-            playwright_args = [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-            ]
-            context = await p.chromium.launch_persistent_context(
-                reviews_session_dir,
-                headless=HEADLESS,
-                args=playwright_args,
-                user_agent=HEADERS["User-Agent"],
-                viewport={"width": 1280, "height": 800},
-            )
+            context = await BrowserManager.start()
             try:
-                page = await context.new_page()
+                try:
+                    page = await context.new_page()
+                except PlaywrightError as e:
+                    if "TargetClosedError" in str(e) or "closed" in str(e).lower():
+                        logger.warning("Browser context was closed before the page could open in reviews parsing loop.")
+                        return []
+                    raise e
+
                 await Stealth().apply_stealth_async(page) 
                 await page.goto(reviews_url, wait_until="domcontentloaded", timeout=60000)
+
+                try:
+                    await Scraper.ensure_logged_in(page, reviews_url)
+                except RuntimeError as auth_err:
+                    logger.error("Stopping reviews scraper loop due to fatal initial authentication error.", auth_err)
+                    raise 
 
                 while True:
                     try:
@@ -864,25 +865,12 @@ class Scraper:
                         logger.info("ASIN %s: Reviews extraction worker caught cancellation signal. Halting execution gracefully.", asin)
                         raise
 
-                    try:
-                        await Scraper.ensure_logged_in(page, reviews_url)
-                    except RuntimeError as auth_err:
-                        logger.error("Stopping reviews scraper loop due to fatal authentication error.")
-                        raise
-
                     logger.info("[Reviews ASIN: %s] Started scraping page %d...", asin, page_num)
 
                     is_captcha_page = await page.locator("form[action*='captcha'], input[id='captchacharacters']").count() > 0
                     if is_captcha_page:
                         logger.warning(" [BLOCK] Captcha payload page confirmed. Interrupted for %ds.", CAPTCHA_WAIT)
                         await asyncio.sleep(CAPTCHA_WAIT)
-                    else:
-                        logger.debug("Page verification clear of anti-bot challenge for page %d", page_num)
-
-                    if await Scraper.is_login_page(page):
-                        logger.warning("Amazon redirected session to auth page.")
-                        if not await Scraper.ensure_logged_in(page, reviews_url):
-                            break
 
                     await Scraper.scroll_page(page)
                     
@@ -927,20 +915,18 @@ class Scraper:
                     except Exception:
                         logger.warning("Pagination event execution triggered a non-standard browser DOM event structure shift. Continuing cautiously...")
 
-                    await Scraper.ensure_logged_in(page, reviews_url)
-
                     try:
                         await page.wait_for_selector("[data-hook='review']", state="attached", timeout=8000)
                     except Exception:
-                        logger.warning("Target metrics missing from immediate viewport following navigation action. Resolving underlying session validation state...")
-                        if await Scraper.is_login_page(page):
-                            await Scraper.ensure_logged_in(page, reviews_url)
-                            await page.wait_for_selector("[data-hook='review']", state="attached", timeout=10000)
+                        logger.warning("Target metrics missing from immediate viewport following navigation action.")
 
                     await asyncio.sleep(PAGE_DELAY)
                     page_num += 1
             finally:
-                await context.close()
+                try:
+                    await page.close()
+                except Exception:
+                    pass
 
         try:
             with open(json_path, "r", encoding="utf-8") as f:
@@ -1114,21 +1100,15 @@ class Scraper:
         os.makedirs(search_session_dir, exist_ok=True)
 
         async with async_playwright() as p:
-            playwright_args = [
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu",
-            ]
-            context = await p.chromium.launch_persistent_context(
-                search_session_dir,
-                headless=HEADLESS,
-                args=playwright_args,
-                user_agent=HEADERS["User-Agent"],
-                viewport={"width": 1280, "height": 800},
-            )
+            context = await BrowserManager.start()
             try:
-                page = await context.new_page()
+                try:
+                    page = await context.new_page()
+                except PlaywrightError as e:
+                    if "TargetClosedError" in str(e) or "closed" in str(e).lower():
+                        logger.warning("Browser context was closed before the page could open.")
+                        return {"status": "cancelled", "message": "Browser session closed."}
+                    raise e
                 await Stealth().apply_stealth_async(page) 
 
                 logger.debug("Navigating browser to search: %s", search_url)
@@ -1149,7 +1129,7 @@ class Scraper:
                         logger.warning(" [BLOCK] Captcha page detected. Resting automation threads for %ds.", CAPTCHA_WAIT)
                         await asyncio.sleep(CAPTCHA_WAIT)
                     else:
-                        logger.debug("Page verification clear of anti-bot challenge for page %d.", page_num)
+                        pass
 
                     if await Scraper.is_login_page(page):
                         logger.warning("Amazon unexpected validation intercept routed session out of the marketplace timeline.")
@@ -1241,7 +1221,10 @@ class Scraper:
 
             finally:
                 Scraper._persist_search_progress(all_products, output_path, page_num)
-                await context.close()
+                try:
+                    await page.close()
+                except Exception:
+                    pass
 
         logger.debug("Scraping completed successfully — %d data compiled from %d pages", len(all_products), page_num)
         return {"total_products": len(all_products), "products": all_products}
