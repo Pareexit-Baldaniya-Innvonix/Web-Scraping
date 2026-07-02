@@ -119,7 +119,6 @@ async def search_products(body: SearchRequest, request: Request):
         existing.cancel()
 
     scraper = Scraper("https://www.amazon.in")
-    t0 = time.perf_counter()
 
     try:
         search_result = await _run_cancellable(
@@ -129,13 +128,13 @@ async def search_products(body: SearchRequest, request: Request):
         )
     except HTTPException:
         raise
-    except Exception as exc:
+    except Exception:
         logger.exception(
-            "Task canceled by the user."
+            "Task dropped due to backend workflow runtime failure."
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to complete structural marketplace search extraction synchronously.",
+            detail="Failed to complete marketplace search validation.",
         )
 
     return JSONResponse(content=search_result)
@@ -227,7 +226,6 @@ async def scrape_reviews(body: ScrapeRequest, request: Request):
         )
 
     scraper = Scraper(url)
-    t0 = time.perf_counter()
 
     try:
         reviews = await _run_cancellable(
@@ -283,12 +281,10 @@ async def cancel_task(task_key: str):
             "API termination dispatch command rejected — No matching background execution context found for key: %s",
             task_key,
         )
+        
+        status_code = getattr(status, "HTTP_444_RESPONSE_VALUE_MISSING", status.HTTP_444_RESPONSE_VALUE_MISSING if hasattr(status, "HTTP_444_RESPONSE_VALUE_MISSING") else status.HTTP_404_NOT_FOUND)
         raise HTTPException(
-            status_code=(
-                status.HTTP_444_RESPONSE_VALUE_MISSING
-                if hasattr(status, "HTTP_444_RESPONSE_VALUE_MISSING")
-                else status.HTTP_404_NOT_FOUND
-            ),
+            status_code=status_code,
             detail=f"No active task found matching target contextual identifier: {task_key}",
         )
 
