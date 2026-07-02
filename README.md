@@ -18,9 +18,9 @@ WEB-SCRAPING/
 │   └── searches/
 │       └── search_{query}.json  # Search results exported as JSON (auto-generated)
 ├── src/
-│   ├── amazon_user_session/     # Persistent Playwright browser sessions (auto-generated)
-│   │   ├── reviews_{ASIN}/      # Per-ASIN session for review scraping
-│   │   └── search_{query_slug}/ # Per-query session for product search
+│   ├── amazon_user_session/     # Reserved for per-ASIN/per-query session dirs (auto-generated, currently unused — see note below)
+│   │   ├── reviews_{ASIN}/      # Created per-ASIN but not wired into the browser context
+│   │   └── search_{query_slug}/ # Created per-query but not wired into the browser context
 │   ├── classes/
 │   │   ├── Product.py           # Pydantic product model
 │   │   ├── Review.py            # Pydantic review model
@@ -71,7 +71,8 @@ WEB-SCRAPING/
 - **Product Reviews** powered by Playwright — paginates through review pages until no further page is found or `THRESHOLD_LIMIT` reviews have been collected, detects CAPTCHAs and waits for manual resolution, deduplicates reviews across pages, and saves results to `output/reviews/reviews_{ASIN}.csv` and `output/reviews/reviews_{ASIN}.json`
 
 - **Automatic Amazon sign-in** — if credentials are provided via `.env`, the scraper detects login/OTP pages and handles authentication automatically before resuming scraping. Supports both email+password and password-only flows, and pauses for OTP/MFA resolution if required.
-- Persistent, isolated Playwright browser sessions stored per ASIN (`amazon_user_session/reviews_{ASIN}/`) and per search query (`amazon_user_session/search_{slug}/`) to preserve login cookies across runs without cross-contamination.
+
+- **Shared, in-memory Playwright browser context** — `BrowserManager` launches a single Chromium `browser`/`context` the first time it's needed and reuses it for every subsequent search and reviews run for the lifetime of the running server process. This means a successful login carries over to later searches/reviews within the same server run, but it is **not** written to disk — restarting the server loses the session and requires signing in again. (`Scraper.py` still computes per-ASIN/per-query paths under `amazon_user_session/`, but these are currently unused placeholders — no persistent Playwright context is actually launched from them.)
 
 - **Atomic search file writes** — search progress is first written to a `.tmp` file and then atomically replaced, preventing partial or corrupt output on interruption.
 - Saves the raw HTML of the most recent `/api/scrape` response for debugging (`output/source.html`, overwritten on every scrape)
@@ -163,11 +164,11 @@ cp example.env .env
 
 In `production`, logs are emitted as **JSON**. In `development`, logs use a human-readable **standard** format.
 
-> **Note:** The `HEADLESS` flag (controls whether Playwright opens a visible browser window) is configured directly in `src/config/constants.py` and defaults to `HEADLESS = True` — Playwright-driven search and reviews scraping run invisibly by default. Set it to `False` if you need to watch the browser or manually resolve a CAPTCHA/OTP challenge, since headless windows cannot be interacted with by hand.
+> **Note:** The `HEADLESS` flag (controls whether Playwright opens a visible browser window) is configured directly in `src/config/constants.py` and defaults to `HEADLESS = False` — Playwright-driven search and reviews scraping open a visible browser window by default, which lets you manually resolve a CAPTCHA/OTP challenge. Set it to `True` if you want the browser to run invisibly in the background (note that headless windows cannot be interacted with by hand, so manual CAPTCHA/OTP resolution won't be possible).
 
 > **Note:** `AMAZON_EMAIL` and `AMAZON_PASSWORD` may be left blank. If a login page is detected and no credentials are configured, the scraper logs a warning and continues — but session-gated content may not be accessible.
->
-> ⚠️ **Important — First-time accounts require manual setup:** Auto sign-in only works reliably with an account that has **previously been signed in** on this machine. If you use a brand-new or never-used email and password, Amazon will trigger a **mobile number verification step** (OTP sent to your registered phone) before allowing access. This step cannot be automated and must be completed manually in the browser window — which requires setting `HEADLESS = False` in `src/config/constants.py` first, since a headless browser has no window to interact with. Once you have completed the manual OTP verification at least once, the session is saved in `amazon_user_session/` and all future runs will sign in automatically without requiring OTP again (even with `HEADLESS = True`).
+
+> ⚠️ **Important — First-time accounts require manual setup:** Auto sign-in only works reliably with an account that has **previously been signed in**. If you use a brand-new or never-used email and password, Amazon will trigger a **mobile number verification step** (OTP sent to your registered phone) before allowing access. This step cannot be automated and must be completed manually in the browser window — which requires `HEADLESS = False` in `src/config/constants.py` (the current default), since a headless browser has no window to interact with. Once you complete the manual OTP verification, the login is kept alive in the shared in-memory browser context for the rest of that server process's lifetime, so later searches/reviews in the same run won't require OTP again — but the session is **not** persisted to disk, so restarting the server resets it and OTP verification will be needed again on the next run.
 
 ---
 
@@ -209,7 +210,7 @@ Navigate to `http://127.0.0.1:8000` in your browser. The dashboard provides thre
   - A **Clear** button wipes all saved stats and history after a confirmation prompt
   - This history is purely client-side (per browser, per machine) — it is not persisted or read by the FastAPI backend, so cancelling/refreshing/using a different browser will not share or preserve it
 
-> **Note:** Product Reviews and Search Products both drive a Chromium browser on the machine running the server. With the default `HEADLESS = True` setting the browser window is not visible; if a CAPTCHA is encountered, it simply pauses for `CAPTCHA_WAIT` seconds (default: 3 seconds, configurable in `constants.py`) and then continues, whether or not the challenge was resolved. To manually solve a CAPTCHA or OTP prompt, set `HEADLESS = False` in `src/config/constants.py` so the browser window is visible. If Amazon redirects to a login page and credentials are configured in `.env`, sign-in is handled automatically.
+> **Note:** Product Reviews and Search Products both drive a Chromium browser on the machine running the server. With the default `HEADLESS = False` setting the browser window is visible, so a CAPTCHA or OTP prompt can be resolved by hand; if a CAPTCHA is encountered, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 45 seconds, configurable in `constants.py`) and then continues, whether or not the challenge was resolved. Set `HEADLESS = True` in `src/config/constants.py` if you want the browser to run invisibly instead (manual CAPTCHA/OTP resolution won't be possible in that mode). If Amazon redirects to a login page and credentials are configured in `.env`, sign-in is handled automatically.
 
 ---
 
@@ -502,7 +503,7 @@ Neither the reviews scraper nor the product search has a hardcoded page cap in c
 
 1. The search query is URL-encoded and navigated to `https://www.amazon.in/s?k={query}`.
 
-2. Playwright launches a persistent Chromium context from a per-query session directory (`amazon_user_session/search_{slug}/`) with stealth patches applied.
+2. Playwright drives the shared Chromium context managed by `BrowserManager` (launched once per server process and reused across all searches/reviews) with stealth patches applied via `playwright-stealth`.
 
 3. Each page is scrolled to trigger lazy-loaded product cards, then parsed with `BeautifulSoup`.
 
@@ -520,7 +521,7 @@ Neither the reviews scraper nor the product search has a hardcoded page cap in c
 
 1. The ASIN is extracted from the product URL via regex.
 
-2. Playwright launches a persistent Chromium context from a per-ASIN session directory (`amazon_user_session/reviews_{ASIN}/`) with stealth patches applied.
+2. Playwright drives the shared Chromium context managed by `BrowserManager` (launched once per server process and reused across all searches/reviews) with stealth patches applied via `playwright-stealth`.
 
 3. The browser navigates to `https://www.amazon.in/product-reviews/{ASIN}?reviewerType=all_reviews`.
 
@@ -528,7 +529,7 @@ Neither the reviews scraper nor the product search has a hardcoded page cap in c
 
 5. Each page is scrolled to trigger lazy-loaded content, then parsed with `BeautifulSoup`.
 
-6. If a CAPTCHA is detected in the page content, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 3 seconds, configurable in `constants.py`) for manual resolution.
+6. If a CAPTCHA is detected in the page content, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 45 seconds, configurable in `constants.py`) for manual resolution.
 
 7. Reviews are deduplicated using a hash of `reviewer_name + date + title + rating` to prevent duplicates across page reloads.
 
@@ -540,20 +541,20 @@ Neither the reviews scraper nor the product search has a hardcoded page cap in c
 
 ## 🔑 Auto Sign-in
 
-When `AMAZON_EMAIL` and `AMAZON_PASSWORD` are set in `.env`, the scraper can automatically authenticate whenever Amazon redirects to a login page during Playwright-driven scraping (both review and product search sessions).
+When `AMAZON_EMAIL` and `AMAZON_PASSWORD` are set in `.env`, the scraper can automatically authenticate whenever Amazon redirects to a login page during Playwright-driven scraping (both review and product search runs). All Playwright-driven scraping shares a single `BrowserManager`-managed Chromium context for the lifetime of the running server process, so a successful sign-in is reused by later searches/reviews within that same run.
 
-> ⚠️ **Auto sign-in only works with an already signed-in account.** If the email and password belong to an account that has never been used on this machine before, Amazon will require **mobile number verification** — it sends an OTP to the registered phone number before granting access. This verification step is fully manual: you must enter the OTP in the browser window yourself, which means `HEADLESS` needs to be set to `False` in `src/config/constants.py` so the window is actually visible. The scraper cannot automate this step. Once the OTP is entered and login is complete for the first time, the session is saved to `amazon_user_session/` and all subsequent runs will authenticate automatically without requiring OTP again — even with `HEADLESS = True`.
+> ⚠️ **Auto sign-in only works with an already signed-in account.** If the email and password belong to an account that has never been used before, Amazon will require **mobile number verification** — it sends an OTP to the registered phone number before granting access. This verification step is fully manual: you must enter the OTP in the browser window yourself, which means `HEADLESS` needs to be set to `False` in `src/config/constants.py` (the current default) so the window is actually visible. The scraper cannot automate this step. Once the OTP is entered and login is complete, the shared browser context stays signed in for the rest of that server process's lifetime, so subsequent runs in the same session won't require OTP again. This is **not** saved to disk, though — restarting the server clears the login state, and the OTP step (or standard sign-in) will run again on the next server run.
 
 The sign-in flow handles:
 - **Email + password** — fills email, clicks Continue, then fills password and submits
 
 - **Password-only** — detects a pre-filled email page and fills only the password
 
-- **OTP / MFA** — if redirected to an MFA or mobile verification page after login (URL containing `mfa`, `auth-mfa`, `verification`, or `ap/cvf`), the scraper pauses for `CAPTCHA_WAIT` seconds (default: 3 seconds, configurable in `constants.py`) to allow manual OTP entry in the browser window
+- **OTP / MFA** — if redirected to an MFA or mobile verification page after login (URL containing `mfa`, `auth-mfa`, `verification`, or `ap/cvf`), the scraper pauses for `CAPTCHA_WAIT` seconds (default: 45 seconds, configurable in `constants.py`) to allow manual OTP entry in the browser window
 
 - **Unrecognized email ("new user") prompt** — if Amazon indicates the email isn't recognized (e.g. "It looks like you are new to Amazon"), the scraper attempts to click through to the create-account/continue prompt and then pauses automation for a fixed **120 seconds** to allow manual account verification/registration in the visible browser window (requires `HEADLESS = False`) before resuming
 
-After a successful login, the scraper automatically navigates back to the original target URL and resumes scraping. Login state is persisted in the session directory so subsequent runs for the same ASIN or query will not need to re-authenticate.
+After a successful login, the scraper automatically navigates back to the original target URL and resumes scraping. Login state lives only in the shared, in-memory `BrowserManager` context for that server process — later scrape/search/reviews runs during the same server session reuse it without re-authenticating, but nothing is written to disk, so a server restart clears it and the next run will need to sign in (and possibly complete OTP verification) again.
 
 ---
 
