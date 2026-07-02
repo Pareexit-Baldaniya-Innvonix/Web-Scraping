@@ -26,7 +26,7 @@ SESSION_DIR = str(_BASE_PATH / "amazon_user_session")
 HEADLESS = False
 PAGE_DELAY = 1.2
 SCROLL_DELAY = 0.5
-CAPTCHA_WAIT = 3
+CAPTCHA_WAIT = 45
 
 # ----- css selectors for next page button -----
 NEXT_PAGE_SELECTORS = [
