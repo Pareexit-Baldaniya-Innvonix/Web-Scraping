@@ -44,4 +44,36 @@ SELECTORS = {
 
     # ----- login -----
     "login": ("input", {"id": "signInSubmit"}),
+
+    # ----- otp / mfa -----
+    "otp_input": ("input", {"id": "auth-mfa-otpcode"}),
+    "otp_submit": ("input", {"id": "auth-signin-button"}),
 }
+
+# ----- css selectors for otp -----
+OTP_INPUT_FALLBACKS = [
+    "input#auth-mfa-otpcode",
+    "input#cvf-input-code",
+    "input[name='otpCode']",
+    "input[name='code']",
+    "input[name='otc']",
+    "input[autocomplete='one-time-code']",
+    "input[type='tel']",
+]
+OTP_SUBMIT_FALLBACKS = [
+    "input#auth-signin-button",
+    "input#cvf-submit-otp-button",
+    "#auth-mfa-otpcode-form input[type='submit']",
+    "#cvf-page-content input[type='submit']",
+    "button[type='submit']",
+]
+
+# ----- otp buttons -----
+OTP_SEND_BUTTON_FALLBACKS = [
+    "input#cvf-widget-btn-verify-otp-button",
+    "input#cvf-widget-btn-send-otp-button",
+    "button#cvf-widget-btn-send-otp-button",
+    "#cvf-page-content input[type='submit']",
+    "#cvf-page-content button[type='submit']",
+    "input[aria-labelledby*='send-otp']",
+]
