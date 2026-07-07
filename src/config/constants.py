@@ -23,10 +23,19 @@ REVIEWS_OUTPUT_DIR = OUTPUT_DIR / "reviews"
 
 # ----- review scraper constants -----
 SESSION_DIR = str(_BASE_PATH / "amazon_user_session")
-HEADLESS = False
+HEADLESS = True
 PAGE_DELAY = 1.2
 SCROLL_DELAY = 0.5
-CAPTCHA_WAIT = 45
+CAPTCHA_WAIT = 120
+
+# ----- timeout for otp input -----
+OTP_WAIT_TIMEOUT = 180
+
+# ----- sign in attempts -----
+SIGNIN_MAX_ATTEMPTS = 2
+
+# ----- otp attempts -----
+OTP_MAX_ATTEMPTS = 3
 
 # ----- css selectors for next page button -----
 NEXT_PAGE_SELECTORS = [
