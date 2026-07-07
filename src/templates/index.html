@@ -177,6 +177,48 @@
             </div>
         </div>
 
+        <!-- ----- DYNAMIC MFA / OTP CODE INTERFACE BLOCK ----- -->
+        <div id="mfaContainer" class="hidden mt-5 glass-panel rounded-2xl border-purple-500/30 bg-purple-950/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-6 relative overflow-hidden transition-all duration-300">
+            <!-- Sleek Top Accent Line -->
+            <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-purple-500/50 to-transparent"></div>
+            
+            <!-- Header Section -->
+            <div class="flex items-center gap-3 pb-4 mb-5 border-b border-white/[0.06]">
+                <div class="bg-purple-500/10 p-2 rounded-lg border border-purple-500/20 text-purple-400">
+                    <i class="fa-solid fa-shield-halved text-sm animate-pulse"></i>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold tracking-wide text-slate-100" id="mfaHeaderTitle">
+                        Choose Verification Method
+                    </h3>
+                    <p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed" id="mfaHeaderDesc">
+                        Amazon needs to know how to send the one-time code for this login. Pick an option below to continue.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Direct Choice Buttons Form -->
+            <div id="mfaChoiceForm" class="hidden">
+                <div id="mfaOptionsContainer" class="flex flex-col gap-3"></div>
+            </div>
+
+            <!-- Direct One-Time Code Entry Form -->
+            <div id="mfaCodeForm" class="hidden space-y-4">
+                <label for="mfaOtpInput" class="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider block">Enter One-Time Password (OTP):</label>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <div class="flex-1 flex items-center gap-3 glass-input rounded-xl px-4 py-2.5">
+                        <i class="fa-solid fa-key text-slate-500 text-xs"></i>
+                        <input type="text" id="mfaOtpInput" maxlength="8" pattern="\d*" placeholder="123456"
+                               class="w-full bg-transparent border-none text-purple-300 placeholder-slate-600 text-sm font-mono tracking-widest focus:outline-none">
+                    </div>
+                    <button onclick="submitMfaCodePayload()" id="mfaCodeSubmitBtn"
+                            class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold px-6 py-2.5 rounded-xl transition-all duration-150 flex items-center justify-center gap-2 whitespace-nowrap active:scale-[0.95] shadow-md shadow-indigo-950/50">
+                        <span>Verify</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div id="successNotice" class="hidden mt-5 p-4 bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md rounded-xl text-emerald-300 text-sm flex items-start gap-3 shadow-lg shadow-emerald-950/20">
             <i class="fa-solid fa-circle-check mt-0.5 text-emerald-400 shrink-0"></i>
             <span id="successMsg" class="leading-relaxed font-medium"></span>
@@ -323,6 +365,10 @@
         let activeMode = 'search'; 
 
         let taskStats = { completed: 0, failed: 0, stopped: 0 };
+
+        // Global tracking workers for authentication state checking
+        let mfaPollIntervalId = null;
+        let mfaChoicePollIntervalId = null;
 
         // ---- Persistence (keeps stats/history across page refreshes) ----
         const STORAGE_KEY_STATS = 'amzScraper_taskStats';
@@ -788,6 +834,220 @@
             }
         });
 
+        let mfaWorkerTimeoutId = null;
+
+        function startMfaMonitoringLoop() {
+            if (mfaWorkerTimeoutId) return;
+            
+            async function pollSync() {
+                try {
+                    // 1. Check if OTP selection choice is active first
+                    const choiceRes = await fetch('/api/otp/choice/status');
+                    const choiceData = await choiceRes.json();
+                    
+                    if (choiceData.waiting) {
+                        renderMfaChoices(choiceData.options);
+                        mfaWorkerTimeoutId = setTimeout(pollSync, 2000);
+                        return;
+                    }
+
+                    // 2. If no choice is pending, check standard input code state
+                    const statusRes = await fetch('/api/otp/status');
+                    const statusData = await statusRes.json();
+                    
+                    const container = document.getElementById('mfaContainer');
+                    const codeForm = document.getElementById('mfaCodeForm');
+
+                    if (statusData.waiting) {
+                        container.classList.remove('hidden');
+                        codeForm.classList.remove('hidden');
+                        document.getElementById('skeletonContainer')?.classList.add('hidden');
+                    } else {
+                        // Keep hidden until backend flags an active login intervention
+                        if (document.getElementById('mfaChoiceForm').classList.contains('hidden')) {
+                            container.classList.add('hidden');
+                        }
+                    }
+                } catch (err) {
+                    console.error("MFA polling error: ", err);
+                }
+                
+                // Continue loop while scraping is active
+                if (stateCache[activeMode].isScraping) {
+                    mfaWorkerTimeoutId = setTimeout(pollSync, 2500); // Relax interval slightly to 2.5s
+                }
+            }
+
+            pollSync();
+        }
+
+        function stopMfaMonitoringLoop() {
+            if (mfaWorkerTimeoutId) {
+                clearTimeout(mfaWorkerTimeoutId);
+                mfaWorkerTimeoutId = null;
+            }
+            document.getElementById('mfaContainer').classList.add('hidden');
+        }
+
+        function renderMfaChoices(options) {
+            const container = document.getElementById('mfaContainer');
+            const choiceForm = document.getElementById('mfaChoiceForm');
+            const optionsWrapper = document.getElementById('mfaOptionsContainer');
+            
+            document.getElementById('mfaHeaderTitle').textContent = "Choose Verification Method";
+            document.getElementById('mfaHeaderDesc').textContent = "Amazon needs to know how to send the one-time code for this login. Pick an option below to continue.";
+
+            container.classList.remove('hidden');
+            choiceForm.classList.remove('hidden');
+            
+            if (optionsWrapper.children.length === 0 && options) {
+                optionsWrapper.innerHTML = options.map((opt) => `
+                    <button type="button" 
+                            onclick="submitDirectMfaChannelChoice('${opt}')" 
+                            onkeydown="if(event.key === 'Enter') { event.preventDefault(); submitDirectMfaChannelChoice('${opt}'); }"
+                            class="w-full text-left flex items-center justify-between px-5 py-4 rounded-xl bg-slate-950/40 border border-white/[0.04] hover:border-purple-500/40 hover:bg-purple-950/10 focus:outline-none focus:border-purple-500/60 focus:bg-purple-950/10 transition-all duration-200 text-xs font-medium text-slate-300 group shadow-inner active:scale-[0.99]">
+                        <span class="group-hover:text-slate-100 group-focus:text-slate-100 transition duration-150">${opt}</span>
+                    </button>
+                `).join('');
+            }
+        }
+
+        async function submitDirectMfaChannelChoice(selectedValue) {
+            if (!selectedValue) return;
+
+            // Optional: Provide instant subtle locking context inside the container layout
+            const optionsWrapper = document.getElementById('mfaOptionsContainer');
+            optionsWrapper.style.opacity = "0.5";
+            optionsWrapper.style.pointerEvents = "none";
+
+            try {
+                const response = await fetch('/api/otp/choice/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ choice: selectedValue })
+                });
+                if (response.ok) {
+                    document.getElementById('mfaChoiceForm').classList.add('hidden');
+                    // Reset container layouts cleaner for next dynamic state injection
+                    optionsWrapper.innerHTML = ''; 
+                }
+            } catch (err) {
+                console.error("Failed handling dynamic routing choice selection selection:", err);
+            } finally {
+                optionsWrapper.style.opacity = "1";
+                optionsWrapper.style.pointerEvents = "auto";
+            }
+        }
+
+        // Long-polling handler checking for dynamic code demands
+        async function checkBackendMfaStatus() {
+            try {
+                const response = await fetch('/api/otp/status');
+                const data = await response.json();
+                const container = document.getElementById('mfaContainer');
+                const codeForm = document.getElementById('mfaCodeForm');
+
+                if (data.waiting) {
+                    container.classList.remove('hidden');
+                    codeForm.classList.remove('hidden');
+                    document.getElementById('skeletonContainer')?.classList.add('hidden'); // Pause loading banner visibility
+                } else {
+                    codeForm.classList.add('hidden');
+                    if (document.getElementById('mfaChoiceForm').classList.contains('hidden')) {
+                        container.classList.add('hidden');
+                    }
+                }
+            } catch (err) {
+                console.error("MFA checking exception encountered: ", err);
+            }
+        }
+
+        // Long-polling checking for dynamic channel choices
+        async function checkBackendMfaChannelChoices() {
+            try {
+                const response = await fetch('/api/otp/choice/status');
+                const data = await response.json();
+                const container = document.getElementById('mfaContainer');
+                const choiceForm = document.getElementById('mfaChoiceForm');
+                const optionsWrapper = document.getElementById('mfaOptionsContainer');
+
+                if (data.waiting && data.options && data.options.length > 0) {
+                    container.classList.remove('hidden');
+                    choiceForm.classList.remove('hidden');
+                    
+                    // Build modern target-selection loops if empty to prevent dynamic layout resetting
+                    if (optionsWrapper.children.length === 0) {
+                        optionsWrapper.innerHTML = data.options.map((opt, index) => `
+                            <label class="flex items-center gap-3 p-3 rounded-lg bg-slate-900/60 border border-white/5 cursor-pointer hover:bg-slate-900 transition text-xs font-medium text-slate-300">
+                                <input type="radio" name="mfaChannelOption" value="${opt}" ${index === 0 ? 'checked' : ''} class="accent-purple-500">
+                                <span>${opt}</span>
+                            </label>
+                        `).join('');
+                    }
+                } else {
+                    choiceForm.classList.add('hidden');
+                    optionsWrapper.innerHTML = ''; // Wipe choices down safely
+                }
+            } catch (err) {
+                console.error("MFA choice configuration tracking exception: ", err);
+            }
+        }
+
+        // Route delivery method choices up to API endpoint
+        async function submitMfaChannelChoice() {
+            const selectedRadio = document.querySelector('input[name="mfaChannelOption"]:checked');
+            if (!selectedRadio) return;
+
+            const btn = document.getElementById('mfaChoiceSubmitBtn');
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+
+            try {
+                const response = await fetch('/api/otp/choice/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ choice: selectedRadio.value })
+                });
+                if (response.ok) {
+                    document.getElementById('mfaChoiceForm').classList.add('hidden');
+                }
+            } catch (err) {
+                console.error("Failed handling delivery configuration dispatch:", err);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+            }
+        }
+
+        // Push OTP code directly to Amazon's dynamic fields
+        async function submitMfaCodePayload() {
+            const codeInput = document.getElementById('mfaOtpInput');
+            const codeValue = codeInput.value.trim();
+            if (!codeValue) return;
+
+            const btn = document.getElementById('mfaCodeSubmitBtn');
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+
+            try {
+                const response = await fetch('/api/otp/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ otp: codeValue })
+                });
+                if (response.ok) {
+                    codeInput.value = '';
+                    document.getElementById('mfaContainer').classList.add('hidden');
+                    document.getElementById('skeletonContainer')?.classList.remove('hidden'); // Resume layout trackers
+                }
+            } catch (err) {
+                console.error("OTP payload entry distribution failed: ", err);
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+            }
+        }
+
         async function abortActiveTask() {
             const currentWorkingMode = activeMode;
             const taskKey = stateCache[currentWorkingMode].activeTaskKey;
@@ -884,6 +1144,9 @@
             setupSkeletonText(currentWorkingMode);
             if (skeletonContainer) skeletonContainer.classList.remove('hidden');
 
+            // Trigger structural dynamic MFA/OTP monitoring interval workers
+            startMfaMonitoringLoop();
+
             try {
                 const response = await fetch(targetEndpoint, {
                     method: 'POST',
@@ -939,6 +1202,9 @@
                     }
                 }
             } finally {
+                // Shut down any structural open MFA checks cleanly
+                stopMfaMonitoringLoop();
+
                 recordTaskOutcome(taskOutcome);
                 pushTaskHistory({
                     mode: currentWorkingMode,
