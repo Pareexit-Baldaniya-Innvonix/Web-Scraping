@@ -1,5 +1,6 @@
 # ----- library import -----
 import asyncio
+import logging
 import time
 from pathlib import Path
 
@@ -8,6 +9,10 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # ----- local imports -----
+from src.classes.PollingEndpointAccessFilter import PollingEndpointAccessFilter
+from src.classes.OtpChoiceRequest import OtpChoiceRequest
+from src.classes.OtpManager import OtpManager
+from src.classes.OtpRequest import OtpRequest
 from src.classes.ScrapeFailReason import ScrapeFailReason
 from src.classes.ScrapeRequest import ScrapeRequest
 from src.classes.Scraper import Scraper
@@ -23,17 +28,23 @@ STATIC_DIR = BASE_DIR / "static"
 setup_logging()
 logger = get_logger("MAIN")
 
+logging.getLogger("uvicorn.access").addFilter(PollingEndpointAccessFilter())
+
 app = FastAPI(title="Amazon Web-Scraper", version="1.0.0")
 
-# ----- active task registry  -----
+# ----- active task registry -----
 _active_tasks: dict[str, asyncio.Task] = {}
+
+# ----- otp long-poll timing -----
+OTP_LONG_POLL_TIMEOUT = 25.0
+OTP_LONG_POLL_INTERVAL = 0.5
 
 # ----- mount static asset directories -----
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 else:
     logger.warning(
-        "Static files root route path directory not found at target tracking path location '%s'. Layout graphics elements might break in dashboard view.",
+        "Static files directory not found at '%s'. Dashboard styles may break.",
         STATIC_DIR,
     )
 
@@ -41,14 +52,14 @@ else:
 async def _run_cancellable(task_key: str, coro, request: Request):
     task = asyncio.ensure_future(coro)
     _active_tasks[task_key] = task
-    logger.debug("Task_key: %s", task_key)
+    logger.debug("Task initialized with key: %s", task_key)
 
     try:
         while not task.done():
             # ----- poll for client disconnect -----
             if await request.is_disconnected():
                 logger.warning(
-                    "Active socket connection channel closed by peer connection. Request key task aborted: %s",
+                    "Client connection closed unexpectedly. Aborting active task: %s",
                     task_key,
                 )
                 task.cancel()
@@ -65,9 +76,7 @@ async def _run_cancellable(task_key: str, coro, request: Request):
         return task.result()
 
     except asyncio.CancelledError:
-        logger.warning(
-            "Active task received an explicit cancellation loop command."
-        )
+        logger.warning("Task execution aborted by explicit cancellation.")
         task.cancel()
         raise HTTPException(
             status_code=499,
@@ -75,7 +84,7 @@ async def _run_cancellable(task_key: str, coro, request: Request):
         )
     finally:
         _active_tasks.pop(task_key, None)
-        logger.debug("Task completed of task_key: %s", task_key)
+        logger.debug("Task cleared from execution queue: %s", task_key)
 
 
 # ----- base route -----
@@ -85,12 +94,9 @@ async def root():
     if html_file.exists():
         return FileResponse(html_file)
 
-    logger.error(
-        "Dashboard UI static assembly framework index template asset is missing at: %s",
-        html_file,
-    )
+    logger.error("Dashboard index UI template asset missing at: %s", html_file)
     return HTMLResponse(
-        content="<h1>Scraper Dashboard</h1><p>UI target component missing or corrupted inside path structure locations.</p>",
+        content="<h1>Scraper Dashboard</h1><p>UI template missing or corrupted.</p>",
         status_code=status.HTTP_404_NOT_FOUND,
     )
 
@@ -108,12 +114,12 @@ async def list_tasks():
 async def search_products(body: SearchRequest, request: Request):
     q = body.query.strip()
     task_key = f"search:{q}"
-    logger.info("Received request to search: '%s'", q)
+    logger.info("Received request to search product: '%s'", q)
 
     existing = _active_tasks.get(task_key)
     if existing and not existing.done():
         logger.warning(
-            "Identical search execution worker process already active for tracking key '%s' — Killing concurrent process context to start fresh query chain execution.",
+            "Search task already active for query '%s'. Cancelling existing task.",
             q,
         )
         existing.cancel()
@@ -129,12 +135,10 @@ async def search_products(body: SearchRequest, request: Request):
     except HTTPException:
         raise
     except Exception:
-        logger.exception(
-            "Task dropped due to backend workflow runtime failure."
-        )
+        logger.exception("Product search task failed due to a processing error.")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to complete marketplace search validation.",
+            detail="Failed to complete marketplace search.",
         )
 
     return JSONResponse(content=search_result)
@@ -145,15 +149,10 @@ async def search_products(body: SearchRequest, request: Request):
 async def scrape_product(body: ScrapeRequest, request: Request):
     url = Scraper.normalize_url(body.url.strip())
     task_key = f"scrape:{url}"
-    logger.info(
-        "Received direct asset metadata extraction target assignment request for URL path footprint: %s",
-        url,
-    )
+    logger.info("Received metadata extraction request for product URL: %s", url)
 
     if not Scraper.check_amazon_url(url):
-        logger.warning(
-            "Target parameter check failure — Invalid marketplace origin drop: %s", url
-        )
+        logger.warning("Invalid target URL rejected: %s", url)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Oops... Invalid URL. It must be from https and amazon.in",
@@ -172,8 +171,7 @@ async def scrape_product(body: ScrapeRequest, request: Request):
         raise
     except Exception as exc:
         logger.exception(
-            "Unexpected structural runtime fault during scraping process layout loop execution step: %s",
-            str(exc),
+            "Unexpected error while running single item scraping routine: %s", exc
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -190,7 +188,7 @@ async def scrape_product(body: ScrapeRequest, request: Request):
             status_code = status.HTTP_502_BAD_GATEWAY
 
         logger.error(
-            "Scraping routine dropped execution cycle following processing delay of %.2fs. Error layout mapping -> HTTP Status: %d, Engine Reason Code: %s, Diagnostic string: %s",
+            "Scraping halted after %.2fs (Status: %d, Reason: %s): %s",
             elapsed,
             status_code,
             result.reason,
@@ -198,10 +196,7 @@ async def scrape_product(body: ScrapeRequest, request: Request):
         )
         raise HTTPException(status_code=status_code, detail=result.detail)
 
-    logger.info(
-        "Single item element structure parsed and mapped down into domain objects completely in %.2fs",
-        elapsed,
-    )
+    logger.info("Product data parsed and mapped in %.2fs.", elapsed)
     return JSONResponse(content=result.product.to_dict())
 
 
@@ -210,16 +205,10 @@ async def scrape_product(body: ScrapeRequest, request: Request):
 async def scrape_reviews(body: ScrapeRequest, request: Request):
     url = Scraper.normalize_url(body.url.strip())
     task_key = f"reviews:{url}"
-    logger.info(
-        "Received reviews request for URL: %s",
-        url,
-    )
+    logger.info("Received reviews extraction request for URL: %s", url)
 
     if not Scraper.check_amazon_url(url):
-        logger.warning(
-            "Target validation baseline logic verification crash — Rejected unauthorized remote host location parameter domain context query for reviews pipeline: %s",
-            url,
-        )
+        logger.warning("Invalid review URL rejected: %s", url)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Oops... Invalid URL. It must be from https and amazon.in",
@@ -236,16 +225,13 @@ async def scrape_reviews(body: ScrapeRequest, request: Request):
     except HTTPException:
         raise
     except RuntimeError as exc:
-        logger.error("Scraping execution halted by internal execution error: %s", str(exc))
+        logger.error("Scraping halted by internal pipeline error: %s", exc)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Scraping context suspended: {str(exc)}"
+            detail=str(exc),
         )
-    except Exception as exc:
-        logger.exception(
-            "Playwright async pagination engine driver raised an unhandled tracking operation crash exception: %s",
-            str(exc),
-        )
+    except Exception:
+        logger.exception("Playwright reviews pagination crashed unexpectedly.")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to extract reviews dynamically.",
@@ -260,6 +246,79 @@ async def scrape_reviews(body: ScrapeRequest, request: Request):
             "reviews": reviews,
         }
     )
+
+
+# ----- otp status long-poll endpoint -----
+@app.get("/api/otp/status")
+async def otp_status(request: Request):
+    elapsed = 0.0
+    initial_waiting = OtpManager.is_waiting()
+    while elapsed < OTP_LONG_POLL_TIMEOUT:
+        if OtpManager.is_waiting() != initial_waiting:
+            break
+        if await request.is_disconnected():
+            break
+        await asyncio.sleep(OTP_LONG_POLL_INTERVAL)
+        elapsed += OTP_LONG_POLL_INTERVAL
+
+    return JSONResponse(
+        content={"waiting": OtpManager.is_waiting(), "error": OtpManager.get_error()}
+    )
+
+
+# ----- otp submission endpoint -----
+@app.post("/api/otp/submit")
+async def otp_submit(body: OtpRequest):
+    otp = body.otp.strip()
+    logger.info("Received OTP code submission from dashboard.")
+
+    accepted = OtpManager.submit_otp(otp)
+    if not accepted:
+        logger.warning("OTP submission rejected; no active OTP request found.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active OTP request found. The login step may have already timed out or completed.",
+        )
+
+    return JSONResponse(content={"submitted": True})
+
+
+# ----- otp delivery-method choice long-poll endpoint -----
+@app.get("/api/otp/choice/status")
+async def otp_choice_status(request: Request):
+    elapsed = 0.0
+    initial_waiting = OtpManager.is_choice_waiting()
+    while elapsed < OTP_LONG_POLL_TIMEOUT:
+        if OtpManager.is_choice_waiting() != initial_waiting:
+            break
+        if await request.is_disconnected():
+            break
+        await asyncio.sleep(OTP_LONG_POLL_INTERVAL)
+        elapsed += OTP_LONG_POLL_INTERVAL
+
+    return JSONResponse(
+        content={
+            "waiting": OtpManager.is_choice_waiting(),
+            "options": OtpManager.get_choice_options(),
+        }
+    )
+
+
+# ----- otp delivery-method choice submission endpoint -----
+@app.post("/api/otp/choice/submit")
+async def otp_choice_submit(body: OtpChoiceRequest):
+    choice = body.choice.strip()
+    logger.info("Received OTP delivery method selection: %s", choice)
+
+    accepted = OtpManager.submit_choice(choice)
+    if not accepted:
+        logger.warning("OTP choice submission rejected; no waiting choice request was active.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active OTP delivery-method request found, or the submitted option was invalid.",
+        )
+
+    return JSONResponse(content={"submitted": True})
 
 
 # ----- explicit cancel endpoint -----
@@ -278,19 +337,14 @@ async def cancel_task(task_key: str):
     task = _active_tasks.get(task_key)
     if task is None or task.done():
         logger.warning(
-            "API termination dispatch command rejected — No matching background execution context found for key: %s",
+            "Task cancellation requested, but no matching task was found for key: %s",
             task_key,
         )
-        
-        status_code = getattr(status, "HTTP_444_RESPONSE_VALUE_MISSING", status.HTTP_444_RESPONSE_VALUE_MISSING if hasattr(status, "HTTP_444_RESPONSE_VALUE_MISSING") else status.HTTP_404_NOT_FOUND)
         raise HTTPException(
-            status_code=status_code,
-            detail=f"No active task found matching target contextual identifier: {task_key}",
+            status_code=404,
+            detail=f"No active task found matching key: {task_key}",
         )
 
     task.cancel()
-    logger.info(
-        "Active operation context killed explicitly by cancel request: %s",
-        task_key,
-    )
+    logger.info("Active task explicitly cancelled by user: %s", task_key)
     return JSONResponse(content={"cancelled": True, "task_key": task_key})
