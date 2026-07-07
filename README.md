@@ -22,15 +22,20 @@ WEB-SCRAPING/
 │   │   ├── reviews_{ASIN}/      # Created per-ASIN but not wired into the browser context
 │   │   └── search_{query_slug}/ # Created per-query but not wired into the browser context
 │   ├── classes/
-│   │   ├── Product.py           # Pydantic product model
-│   │   ├── Review.py            # Pydantic review model
-│   │   ├── Scraper.py           # Core scraping logic (requests + Playwright)
-│   │   ├── ScrapeFailReason.py  # Enum for scrape failure categories
-│   │   ├── ScrapeRequest.py     # Pydantic request body model
-│   │   ├── ScrapeResult.py      # Pydantic result wrapper model
-│   │   ├── SearchRequest.py     # Pydantic search request body model
-│   │   ├── SearchResult.py      # Pydantic search result model
-│   │   └── Settings.py          # Environment-based settings (pydantic-settings)
+│   │   ├── BrowserManager.py            # Shared, process-lifetime Chromium browser/context singleton
+│   │   ├── OtpChoiceRequest.py          # Pydantic body model for the OTP delivery-method popup
+│   │   ├── OtpManager.py                # Async future-based bridge between the login flow and the dashboard OTP popup
+│   │   ├── OtpRequest.py                # Pydantic body model for OTP code submission
+│   │   ├── PollingEndpointAccessFilter.py # Logging filter that silences noisy OTP-poller access logs
+│   │   ├── Product.py                   # Pydantic product model
+│   │   ├── Review.py                    # Pydantic review model
+│   │   ├── Scraper.py                   # Core scraping logic (requests + Playwright)
+│   │   ├── ScrapeFailReason.py          # Enum for scrape failure categories
+│   │   ├── ScrapeRequest.py             # Pydantic request body model
+│   │   ├── ScrapeResult.py              # Pydantic result wrapper model
+│   │   ├── SearchRequest.py             # Pydantic search request body model
+│   │   ├── SearchResult.py              # Pydantic search result model
+│   │   └── Settings.py                  # Environment-based settings (pydantic-settings)
 │   ├── config/
 │   │   ├── constants.py         # HTTP headers, cookies & directory constants
 │   │   └── selectors.py         # BeautifulSoup CSS selectors
@@ -41,8 +46,11 @@ WEB-SCRAPING/
 │   ├── utils/
 │   │   └── logger.py            # Centralized logging setup
 │   └── main.py                  # FastAPI app entry point (top-level module inside src/)
+├── .dockerignore                # Files excluded from the Docker build context
 ├── .env                         # Local environment variables (git-ignored)
 ├── .gitignore
+├── docker-compose.yml           # One-command container orchestration (build, ports, volumes, healthcheck)
+├── Dockerfile                   # Container image definition (Python 3.12 + Playwright/Chromium)
 ├── example.env                  # Example env file for reference
 ├── Pipfile                      # Pipenv dependency manifest
 ├── Pipfile.lock                 # Locked dependency versions
@@ -164,11 +172,11 @@ cp example.env .env
 
 In `production`, logs are emitted as **JSON**. In `development`, logs use a human-readable **standard** format.
 
-> **Note:** The `HEADLESS` flag (controls whether Playwright opens a visible browser window) is configured directly in `src/config/constants.py` and defaults to `HEADLESS = False` — Playwright-driven search and reviews scraping open a visible browser window by default, which lets you manually resolve a CAPTCHA/OTP challenge. Set it to `True` if you want the browser to run invisibly in the background (note that headless windows cannot be interacted with by hand, so manual CAPTCHA/OTP resolution won't be possible).
+> **Note:** The `HEADLESS` flag (controls whether Playwright opens a visible browser window) is configured directly in `src/config/constants.py` and defaults to `HEADLESS = True` — Playwright-driven search and reviews scraping run Chromium invisibly in the background by default (this is what makes it possible to run inside Docker, which has no display). CAPTCHA/OTP/MFA challenges are surfaced through the **dashboard OTP popup** instead of a visible window — see [🔑 OTP & MFA Dashboard Popup](#-otp--mfa-dashboard-popup) below. Set `HEADLESS = False` only if you're running locally with a display and prefer to resolve challenges by watching the actual browser window.
 
 > **Note:** `AMAZON_EMAIL` and `AMAZON_PASSWORD` may be left blank. If a login page is detected and no credentials are configured, the scraper logs a warning and continues — but session-gated content may not be accessible.
 
-> ⚠️ **Important — First-time accounts require manual setup:** Auto sign-in only works reliably with an account that has **previously been signed in**. If you use a brand-new or never-used email and password, Amazon will trigger a **mobile number verification step** (OTP sent to your registered phone) before allowing access. This step cannot be automated and must be completed manually in the browser window — which requires `HEADLESS = False` in `src/config/constants.py` (the current default), since a headless browser has no window to interact with. Once you complete the manual OTP verification, the login is kept alive in the shared in-memory browser context for the rest of that server process's lifetime, so later searches/reviews in the same run won't require OTP again — but the session is **not** persisted to disk, so restarting the server resets it and OTP verification will be needed again on the next run.
+> ⚠️ **Important — the email must already have a registered Amazon account:** Auto sign-in requires an email/password pair for an account that **already exists** on Amazon. If Amazon doesn't recognize the email (shows a "Create account" prompt or similar "new to Amazon" screen), the scraper does not attempt to register one — it immediately raises an error and aborts that sign-in attempt (see the [🔑 Auto Sign-in](#-auto-sign-in) section). If the email/password **do** belong to an existing account but Amazon still challenges the login with an OTP/MFA step (e.g. a new or unrecognized device), that challenge is resolved through the **dashboard OTP popup** — no visible browser window is needed, even with the default `HEADLESS = True`. Once OTP verification is completed for an existing account, the login is kept alive in the shared in-memory browser context for the rest of that server process's lifetime, so later searches/reviews in the same run won't require OTP again — but the session is **not** persisted to disk, so restarting the server (or container) resets it and any required OTP verification will run again on the next run.
 
 ---
 
@@ -185,6 +193,76 @@ The API will be available at `http://127.0.0.1:8000`.
 The `--reload` flag enables hot-reloading on code changes (recommended for development).
 
 Open `http://127.0.0.1:8000` in your browser to use the **web dashboard UI**.
+
+---
+
+## 🐳 Docker
+
+The project ships with a `Dockerfile`, `docker-compose.yml`, and `.dockerignore` so it can run without installing Python, Pipenv, or Playwright's browser binaries on the host at all — everything is built into the image.
+
+### 1. Configure environment variables
+
+Docker reads the same `.env` file as the local Pipenv setup:
+
+```bash
+cp example.env .env
+# then edit .env and fill in ENV, LOG_LEVEL, AMAZON_EMAIL, AMAZON_PASSWORD, THRESHOLD_LIMIT
+```
+
+> ⚠️ **Never commit `.env` (or any file with real credentials) to version control.** `.env` is already listed in `.gitignore` and `.dockerignore`, so it's read at build/run time but never baked into the image or pushed to a registry. If credentials were ever committed or shared, rotate the Amazon account password immediately.
+
+### 2. Build and run with Docker Compose (recommended)
+
+```bash
+docker compose up --build
+```
+
+This builds the image, starts the container in the foreground, and:
+- publishes the API on `http://127.0.0.1:8000`
+- mounts `./logs`, `./output`, and `./src/amazon_user_session` as volumes so scrape/search/review output and log files persist on the host across container restarts
+- allocates a 1 GB `/dev/shm` (`shm_size`), since Chromium's default shared-memory allowance is too small and will crash on memory-heavy pages
+- runs a container healthcheck against `GET /api/tasks` every 30 seconds
+
+Run it in the background instead with:
+
+```bash
+docker compose up --build -d
+```
+
+Stop it with:
+
+```bash
+docker compose down
+```
+
+### 3. Build and run with plain `docker` (no Compose)
+
+```bash
+docker build -t amazon-scraper .
+
+docker run -d \
+  --name amazon-scraper \
+  -p 8000:8000 \
+  --env-file .env \
+  --shm-size=1gb \
+  -v "$(pwd)/logs:/app/logs" \
+  -v "$(pwd)/output:/app/output" \
+  -v "$(pwd)/src/amazon_user_session:/app/src/amazon_user_session" \
+  amazon-scraper
+```
+
+### What the image does
+
+- Base image: `python:3.12-slim`, matching the `python_version = "3.12"` pin in `Pipfile`.
+- Dependencies are installed from `Pipfile.lock` via `pipenv install --deploy --system`, so the container gets exactly the locked versions — the build fails loudly if `Pipfile` and `Pipfile.lock` are out of sync instead of silently re-resolving.
+- `playwright install --with-deps chromium` installs both the Chromium binary and the OS-level shared libraries it needs, so no manual `apt-get` step is required.
+- The app runs as a non-root `appuser`, not `root` — Chromium's sandbox works fine unprivileged, so there's no need to disable it with `--no-sandbox`.
+- `uvicorn` is started **without** `--reload` (reload is a filesystem-watching dev convenience with no place in a built image — code changes require rebuilding).
+- `logs/`, `output/{reviews,searches}/`, and `src/amazon_user_session/` are created at build time and are the same paths the volumes above mount over, so nothing is lost if you skip the volume mounts (it just won't persist between container runs).
+
+### Headless mode inside the container
+
+Docker containers have no display, so `HEADLESS` **must** stay at its default of `True` (see `src/config/constants.py`) when running in a container — a visible Chromium window is not an option here. This is exactly what the [🔑 OTP & MFA Dashboard Popup](#-otp--mfa-dashboard-popup) exists for: sign in, search, and review runs that hit a login/OTP/CAPTCHA challenge surface it through `/api/otp/*` and the dashboard popup, so you can resolve it from your browser (pointed at the container's port 8000) even though the browser Playwright is driving is invisible.
 
 ---
 
@@ -210,7 +288,7 @@ Navigate to `http://127.0.0.1:8000` in your browser. The dashboard provides thre
   - A **Clear** button wipes all saved stats and history after a confirmation prompt
   - This history is purely client-side (per browser, per machine) — it is not persisted or read by the FastAPI backend, so cancelling/refreshing/using a different browser will not share or preserve it
 
-> **Note:** Product Reviews and Search Products both drive a Chromium browser on the machine running the server. With the default `HEADLESS = False` setting the browser window is visible, so a CAPTCHA or OTP prompt can be resolved by hand; if a CAPTCHA is encountered, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 45 seconds, configurable in `constants.py`) and then continues, whether or not the challenge was resolved. Set `HEADLESS = True` in `src/config/constants.py` if you want the browser to run invisibly instead (manual CAPTCHA/OTP resolution won't be possible in that mode). If Amazon redirects to a login page and credentials are configured in `.env`, sign-in is handled automatically.
+> **Note:** Product Reviews and Search Products both drive a Chromium browser on the machine running the server. With the default `HEADLESS = True` setting the browser runs invisibly, so CAPTCHA/OTP prompts can't be resolved by looking at a window — instead, an OTP challenge pops up in the dashboard (see [🔑 OTP & MFA Dashboard Popup](#-otp--mfa-dashboard-popup)) for you to submit the code from wherever the dashboard is open. If a CAPTCHA is encountered, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 120 seconds, configurable in `constants.py`) and then continues, whether or not the challenge was resolved. Set `HEADLESS = False` in `src/config/constants.py` if you'd rather run with a visible browser window locally. If Amazon redirects to a login page and credentials are configured in `.env`, sign-in is handled automatically.
 
 ---
 
@@ -525,11 +603,11 @@ Neither the reviews scraper nor the product search has a hardcoded page cap in c
 
 3. The browser navigates to `https://www.amazon.in/product-reviews/{ASIN}?reviewerType=all_reviews`.
 
-4. If a login page is detected, the scraper automatically signs in using `AMAZON_EMAIL` and `AMAZON_PASSWORD` from `.env`. OTP/MFA pages trigger a configurable wait (`CAPTCHA_WAIT`) for manual resolution before continuing.
+4. If a login page is detected, the scraper automatically signs in using `AMAZON_EMAIL` and `AMAZON_PASSWORD` from `.env`. OTP/MFA pages trigger a request through `OtpManager`, which waits up to `OTP_WAIT_TIMEOUT` seconds (default: 180 seconds, configurable in `constants.py`) for the code to be submitted via the dashboard OTP popup before continuing.
 
 5. Each page is scrolled to trigger lazy-loaded content, then parsed with `BeautifulSoup`.
 
-6. If a CAPTCHA is detected in the page content, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 45 seconds, configurable in `constants.py`) for manual resolution.
+6. If a CAPTCHA is detected in the page content, the scraper pauses for `CAPTCHA_WAIT` seconds (default: 120 seconds, configurable in `constants.py`) for manual resolution.
 
 7. Reviews are deduplicated using a hash of `reviewer_name + date + title + rating` to prevent duplicates across page reloads.
 
@@ -543,18 +621,35 @@ Neither the reviews scraper nor the product search has a hardcoded page cap in c
 
 When `AMAZON_EMAIL` and `AMAZON_PASSWORD` are set in `.env`, the scraper can automatically authenticate whenever Amazon redirects to a login page during Playwright-driven scraping (both review and product search runs). All Playwright-driven scraping shares a single `BrowserManager`-managed Chromium context for the lifetime of the running server process, so a successful sign-in is reused by later searches/reviews within that same run.
 
-> ⚠️ **Auto sign-in only works with an already signed-in account.** If the email and password belong to an account that has never been used before, Amazon will require **mobile number verification** — it sends an OTP to the registered phone number before granting access. This verification step is fully manual: you must enter the OTP in the browser window yourself, which means `HEADLESS` needs to be set to `False` in `src/config/constants.py` (the current default) so the window is actually visible. The scraper cannot automate this step. Once the OTP is entered and login is complete, the shared browser context stays signed in for the rest of that server process's lifetime, so subsequent runs in the same session won't require OTP again. This is **not** saved to disk, though — restarting the server clears the login state, and the OTP step (or standard sign-in) will run again on the next server run.
+> ⚠️ **Auto sign-in requires an email/password for an account that already exists on Amazon.** If the email is unrecognized (Amazon shows a "Create account" prompt or "We cannot find an account with that email address"), the scraper does **not** try to create one — it raises `RuntimeError("Login Error - New user detected. Please use a registered email id and password.")` and the sign-in attempt fails immediately; there is no manual-resolution path for this case. If the credentials **do** match an existing account but Amazon still challenges the login with an OTP/MFA step (e.g. an unrecognized device), that step **is** handled manually through the **dashboard OTP popup** rather than a visible browser window (see [🔑 OTP & MFA Dashboard Popup](#-otp--mfa-dashboard-popup)). Once the OTP is submitted and login is complete, the shared browser context stays signed in for the rest of that server process's lifetime, so subsequent runs in the same session won't require OTP again. This is **not** saved to disk, though — restarting the server (or container) clears the login state, and any required OTP step (or standard sign-in) will run again on the next run.
 
 The sign-in flow handles:
 - **Email + password** — fills email, clicks Continue, then fills password and submits
 
 - **Password-only** — detects a pre-filled email page and fills only the password
 
-- **OTP / MFA** — if redirected to an MFA or mobile verification page after login (URL containing `mfa`, `auth-mfa`, `verification`, or `ap/cvf`), the scraper pauses for `CAPTCHA_WAIT` seconds (default: 45 seconds, configurable in `constants.py`) to allow manual OTP entry in the browser window
+- **OTP / MFA** — if redirected to an MFA or mobile verification page after login (URL containing `mfa`, `auth-mfa`, `verification`, or `ap/cvf`), the scraper requests a code through `OtpManager` and waits up to `OTP_WAIT_TIMEOUT` seconds (default: 180 seconds, configurable in `constants.py`) for it to arrive from the dashboard OTP popup (or from a visible browser window if `HEADLESS = False`)
 
-- **Unrecognized email ("new user") prompt** — if Amazon indicates the email isn't recognized (e.g. "It looks like you are new to Amazon"), the scraper attempts to click through to the create-account/continue prompt and then pauses automation for a fixed **120 seconds** to allow manual account verification/registration in the visible browser window (requires `HEADLESS = False`) before resuming
+- **Unrecognized email ("new user") prompt** — if Amazon indicates the email isn't recognized (e.g. a "Create account" prompt or "We cannot find an account with that email address"), the scraper does **not** attempt to create an account. It immediately raises a `RuntimeError` ("Login Error - New user detected. Please use a registered email id and password.") which aborts the current sign-in attempt — the request fails fast with that message rather than pausing for manual resolution. Use an email/password pair for an **existing, already-verified** Amazon account instead.
 
 After a successful login, the scraper automatically navigates back to the original target URL and resumes scraping. Login state lives only in the shared, in-memory `BrowserManager` context for that server process — later scrape/search/reviews runs during the same server session reuse it without re-authenticating, but nothing is written to disk, so a server restart clears it and the next run will need to sign in (and possibly complete OTP verification) again.
+
+---
+
+## 🔑 OTP & MFA Dashboard Popup
+
+Because `HEADLESS` defaults to `True` (and Docker containers have no display at all), a visible browser window isn't available for manually typing in a one-time code. Instead, whenever the sign-in flow hits an OTP/MFA/delivery-method-choice screen, `OtpManager` parks the login coroutine on an `asyncio.Future` and exposes the pending request to the dashboard through a small polling API. The web dashboard polls these endpoints and shows a popup automatically — no manual configuration needed.
+
+| Endpoint | Method | Purpose |
+|---|---|---|
+| `/api/otp/status` | `GET` | Poll target — returns `{"waiting": bool, "error": str \| null}`. `waiting: true` means the login flow is currently blocked on a code. |
+| `/api/otp/submit` | `POST` | Body: `{"otp": "123456"}`. Resolves the pending future with the code, unblocking the login flow. Returns `400` if no OTP request is currently pending. |
+| `/api/otp/choice/status` | `GET` | Poll target for the OTP **delivery-method** chooser screen — returns `{"waiting": bool, "options": string[]}` (e.g. `["WhatsApp me at ...", "Text me at ..."]`). |
+| `/api/otp/choice/submit` | `POST` | Body: `{"choice": "<one of the offered options, verbatim>"}`. Resolves the pending choice future. Returns `400` if the choice doesn't match one of the currently offered options. |
+
+- If a submitted OTP is rejected by Amazon, the scraper calls `request_otp` again with an error message; `/api/otp/status` surfaces that message via its `error` field so the dashboard can show *why* it's asking again, up to `OTP_MAX_ATTEMPTS` (default: 3, configurable in `constants.py`) attempts.
+- Both pollers are deliberately noisy at the HTTP level (they're hit on a short interval while waiting), so `PollingEndpointAccessFilter` strips `/api/otp/status` and `/api/otp/choice/status` requests out of the uvicorn access log to keep `logs/scraper.log` readable.
+- If nobody submits a code within `OTP_WAIT_TIMEOUT` seconds (default: 180), the pending future is cancelled via `OtpManager.cancel()` / `cancel_choice()` so a stale request never blocks a future login attempt.
 
 ---
 

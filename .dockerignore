@@ -1,0 +1,41 @@
+# Version control
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv
+venv/
+env/
+ENV/
+
+# Environment variables / secrets
+.env
+example.env
+
+# IDE / editor
+.vscode
+.idea
+
+# Project-specific
+logs/
+output/
+.Web-Scraping
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Misc
+*.log
+.DS_Store
+README.md

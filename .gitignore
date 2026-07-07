@@ -234,3 +234,24 @@ amazon_user_session/
 *.njsproj
 *.sln
 *.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Docker
+docker-compose.override.yml
+.docker/
+
+# Project-specific secrets/config
+selectors.py.bak
+*.session
+cookies.json
