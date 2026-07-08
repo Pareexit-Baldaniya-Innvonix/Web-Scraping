@@ -92,237 +92,236 @@
     <div class="absolute bottom-1/3 right-1/4 w-[450px] h-[450px] bg-teal-500 rounded-full glow-blob pointer-events-none" style="animation-delay: -4s;"></div>
 
     <div class="w-full max-w-6xl flex flex-col lg:flex-row items-start gap-6 relative z-10">
-    <div class="w-full lg:flex-1 glass-panel p-6 md:p-8 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] transition-all duration-300">
-        
-        <div class="flex items-center gap-4 mb-6 pb-5 border-b border-white/[0.06]">
-            <div class="bg-gradient-to-tr from-purple-600 to-indigo-600 p-3 rounded-xl shadow-lg shadow-purple-900/40 ring-1 ring-white/20">
-                <i class="fa-solid fa-spider text-white text-xl animate-pulse"></i>
-            </div>
-            <div>
-                <h1 class="text-2xl md:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-slate-400">
-                    Amazon Web Scraper
-                </h1>
-                <p class="text-xs md:text-sm text-slate-400 mt-1 font-medium">Extract Amazon product data, descriptions, search products, and reviews in structured JSON format</p>
-            </div>
-        </div>
-
-        <div class="flex bg-slate-950/60 p-1.5 rounded-xl gap-1.5 mb-6 max-w-xl border border-white/5 shadow-inner">
-            <button onclick="setScrapeMode('search')" id="modeSearchBtn" 
-                    class="flex-1 text-xs md:text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-300 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-indigo-950/40">
-                <i class="fa-solid fa-magnifying-glass mr-2 opacity-90"></i>Search Products
-            </button>
-            <button onclick="setScrapeMode('product')" id="modeProductBtn" 
-                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]">
-                <i class="fa-solid fa-box-open mr-2 opacity-70"></i>Product Details
-            </button>
-            <button onclick="setScrapeMode('reviews')" id="modeReviewsBtn" 
-                    class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]">
-                <i class="fa-solid fa-comments mr-2 opacity-70"></i>Product Reviews
-            </button>
-        </div>
-        
-        <div class="flex flex-col sm:flex-row gap-3 p-2 glass-input rounded-xl mb-1">
-            <div class="flex-1 flex items-center gap-3 px-3 py-2 sm:py-0">
-                <i id="inputIcon" class="fa-solid fa-magnifying-glass text-slate-400 text-sm"></i>
-                <input type="text" id="urlInput" oninput="syncUrlInput(this.value)" onchange="syncUrlInput(this.value)" onpaste="setTimeout(() => syncUrlInput(this.value), 10)" onkeydown="handleInputKeyDown(event)"
-                       class="w-full bg-transparent border-none text-slate-100 placeholder-slate-500 text-sm focus:outline-none py-1" 
-                       placeholder="Enter product keywords (e.g., Wireless Headphones)...">
-            </div>
-            <button onclick="executeScrape()" id="scrapeBtn" 
-                    class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-bold px-6 py-3 rounded-lg transition-all duration-250 flex items-center justify-center gap-2 active:scale-[0.97] hover:scale-[1.01] shadow-lg shadow-indigo-950/60 group whitespace-nowrap">
-                <span id="btnText">Search Products</span>
-                <i class="fa-solid fa-arrow-right text-xs transition-transform group-hover:translate-x-1"></i>
-            </button>
-        </div>
-
-        <div id="searchNotice" class="mt-4 p-3.5 bg-teal-500/10 border border-teal-500/20 backdrop-blur-md rounded-xl text-teal-300 text-xs flex items-center gap-3 shadow-sm">
-            <i class="fa-solid fa-circle-info text-teal-400 text-sm shrink-0"></i>
-            <span class="leading-relaxed">Note: Search Products runs background engine browser instances to compile product layouts. This sequence requires advanced scheduling cycles.</span>
-        </div>
-
-        <div id="reviewsNotice" class="hidden mt-4 p-3.5 bg-indigo-500/10 border border-indigo-500/20 backdrop-blur-md rounded-xl text-indigo-300 text-xs flex items-center gap-3 shadow-sm">
-            <i class="fa-solid fa-circle-info text-indigo-400 text-sm shrink-0"></i>
-            <span class="leading-relaxed">Note: Product Reviews parser iterates multiple structural review segments dynamically. This complex pagination task can take extra execution overhead.</span>
-        </div>
-
-        <div id="skeletonContainer" class="hidden mt-5 border border-white/5 rounded-xl bg-slate-950/40 backdrop-blur-xl overflow-hidden shadow-2xl">
-            <div class="flex items-center justify-between px-5 py-4 bg-white/[0.01] border-b border-white/5 gap-4 flex-wrap">
-                <div class="flex items-center min-w-0">
-                    <div class="text-xs font-mono font-bold uppercase tracking-wider bg-slate-900/80 px-2.5 py-1.5 rounded border border-white/5 flex items-center gap-2.5 truncate">
-                        <i class="fa-solid fa-circle-notch animate-spin text-teal-400 text-[11px] shrink-0" id="skeletonIcon"></i>
-                        <span id="skeletonTitle" class="font-mono font-semibold text-teal-400 tracking-wide text-[11px]">Querying Marketplace Index & Extracting Products...</span>
-                    </div>
-                </div>
-                <div class="flex items-center">
-                    <button id="cancelTaskBtn" onclick="abortActiveTask()" 
-                            class="text-[11px] bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3.5 py-1.5 rounded border border-red-500/20 transition duration-150 flex items-center gap-2 active:scale-[0.95] font-mono font-medium tracking-wide">
-                        <i class="fa-solid fa-ban text-[10px]"></i>
-                        <span>Cancel Task</span>
-                    </button>
-                </div>
-            </div>
+        <div class="w-full lg:flex-1 glass-panel p-6 md:p-8 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] transition-all duration-300">
             
-            <div class="p-5 md:p-6 space-y-4 font-mono select-none pointer-events-none animate-shimmer">
-                <div class="h-3.5 bg-slate-900 rounded w-1/4 opacity-90"></div>
-                <div class="space-y-2.5 pl-4">
-                    <div class="h-3 bg-slate-900/70 rounded w-1/3"></div>
-                    <div class="h-3 bg-slate-900/70 rounded w-3/4"></div>
-                    <div class="h-3 bg-slate-900/70 rounded w-1/2"></div>
-                </div>
-                <div class="space-y-2.5 pl-8">
-                    <div class="h-3 bg-slate-900/50 rounded w-2/5"></div>
-                    <div class="h-3 bg-slate-900/50 rounded w-3/5"></div>
-                </div>
-                <div class="h-3.5 bg-slate-900 rounded w-1/5 opacity-90 pt-1"></div>
-            </div>
-        </div>
-
-        <!-- ----- DYNAMIC MFA / OTP CODE INTERFACE BLOCK ----- -->
-        <div id="mfaContainer" class="hidden mt-5 glass-panel rounded-2xl border-purple-500/30 bg-purple-950/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-6 relative overflow-hidden transition-all duration-300">
-            <!-- Sleek Top Accent Line -->
-            <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-purple-500/50 to-transparent"></div>
-            
-            <!-- Header Section -->
-            <div class="flex items-center gap-3 pb-4 mb-5 border-b border-white/[0.06]">
-                <div class="bg-purple-500/10 p-2 rounded-lg border border-purple-500/20 text-purple-400">
-                    <i class="fa-solid fa-shield-halved text-sm animate-pulse"></i>
+            <div class="flex items-center gap-4 mb-6 pb-5 border-b border-white/[0.06]">
+                <div class="bg-gradient-to-tr from-purple-600 to-indigo-600 p-3 rounded-xl shadow-lg shadow-purple-900/40 ring-1 ring-white/20">
+                    <i class="fa-solid fa-spider text-white text-xl animate-pulse"></i>
                 </div>
                 <div>
-                    <h3 class="text-sm font-bold tracking-wide text-slate-100" id="mfaHeaderTitle">
-                        Choose Verification Method
-                    </h3>
-                    <p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed" id="mfaHeaderDesc">
-                        Amazon needs to know how to send the one-time code for this login. Pick an option below to continue.
-                    </p>
+                    <h1 class="text-2xl md:text-3xl font-black tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-slate-400">
+                        Amazon Web Scraper
+                    </h1>
+                    <p class="text-xs md:text-sm text-slate-400 mt-1 font-medium">Extract Amazon product data, descriptions, search products, and reviews in structured JSON format</p>
                 </div>
             </div>
 
-            <!-- Direct Choice Buttons Form -->
-            <div id="mfaChoiceForm" class="hidden">
-                <div id="mfaOptionsContainer" class="flex flex-col gap-3"></div>
-            </div>
-
-            <!-- Direct One-Time Code Entry Form -->
-            <div id="mfaCodeForm" class="hidden space-y-4">
-                <label for="mfaOtpInput" class="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider block">Enter One-Time Password (OTP):</label>
-                <div class="flex flex-col sm:flex-row gap-3">
-                    <div class="flex-1 flex items-center gap-3 glass-input rounded-xl px-4 py-2.5">
-                        <i class="fa-solid fa-key text-slate-500 text-xs"></i>
-                        <input type="text" id="mfaOtpInput" maxlength="8" pattern="\d*" placeholder="123456"
-                               class="w-full bg-transparent border-none text-purple-300 placeholder-slate-600 text-sm font-mono tracking-widest focus:outline-none">
-                    </div>
-                    <button onclick="submitMfaCodePayload()" id="mfaCodeSubmitBtn"
-                            class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold px-6 py-2.5 rounded-xl transition-all duration-150 flex items-center justify-center gap-2 whitespace-nowrap active:scale-[0.95] shadow-md shadow-indigo-950/50">
-                        <span>Verify</span>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div id="successNotice" class="hidden mt-5 p-4 bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md rounded-xl text-emerald-300 text-sm flex items-start gap-3 shadow-lg shadow-emerald-950/20">
-            <i class="fa-solid fa-circle-check mt-0.5 text-emerald-400 shrink-0"></i>
-            <span id="successMsg" class="leading-relaxed font-medium"></span>
-        </div>
-
-        <div id="error" class="hidden mt-5 p-4 bg-red-500/10 border border-red-500/20 backdrop-blur-md rounded-xl text-red-300 text-sm flex items-start gap-3 shadow-lg shadow-red-950/20">
-            <i class="fa-solid fa-circle-exclamation mt-0.5 text-red-400 shrink-0"></i>
-            <span id="errorMsg" class="leading-relaxed font-medium"></span>
-        </div>
-
-        <div id="resultContainer" class="hidden mt-5 border border-white/5 rounded-xl bg-slate-950/60 backdrop-blur-xl overflow-hidden shadow-2xl transition-all duration-300">
-            <div class="flex flex-col sm:flex-row justify-between sm:items-center px-5 py-3.5 bg-white/[0.02] border-b border-white/5 gap-3">
-                <div class="flex items-center gap-2.5 text-xs font-bold text-slate-400 uppercase tracking-wider select-none">
-                    <span class="text-teal-400 font-mono text-base leading-none">{}</span>
-                    <span id="payloadTypeLabel" class="tracking-wide">Marketplace Search JSON</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <button id="downloadCsvBtn" onclick="downloadReviewsCsv()" 
-                            class="hidden text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-3.5 py-2 rounded-md border border-emerald-500/20 transition duration-150 flex items-center gap-1.5 active:scale-[0.95] shadow-sm font-semibold">
-                        <i class="fa-solid fa-file-csv text-sm"></i>
-                        <span>Download CSV</span>
-                    </button>
-                    
-                    <button onclick="copyToClipboard()" 
-                            class="text-xs bg-white/5 hover:bg-white/10 text-slate-300 px-3.5 py-2 rounded-md border border-white/5 transition duration-150 flex items-center gap-1.5 active:scale-[0.95] shadow-sm font-semibold">
-                        <i id="copyIcon" class="fa-regular fa-copy"></i>
-                        <span id="copyText">Copy Payload</span>
-                    </button>
-                </div>
+            <div class="flex bg-slate-950/60 p-1.5 rounded-xl gap-1.5 mb-6 max-w-xl border border-white/5 shadow-inner">
+                <button onclick="setScrapeMode('search')" id="modeSearchBtn" 
+                        class="flex-1 text-xs md:text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-300 bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-indigo-950/40">
+                    <i class="fa-solid fa-magnifying-glass mr-2 opacity-90"></i>Search Products
+                </button>
+                <button onclick="setScrapeMode('product')" id="modeProductBtn" 
+                        class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]">
+                    <i class="fa-solid fa-box-open mr-2 opacity-70"></i>Product Details
+                </button>
+                <button onclick="setScrapeMode('reviews')" id="modeReviewsBtn" 
+                        class="flex-1 text-xs md:text-sm font-medium py-2.5 px-3 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200 hover:bg-white/[0.02]">
+                    <i class="fa-solid fa-comments mr-2 opacity-70"></i>Product Reviews
+                </button>
             </div>
             
-            <pre id="output" class="json-container text-xs md:text-[14px] font-mono leading-relaxed max-h-[500px] overflow-auto p-5 md:p-6 text-slate-300 whitespace-pre-wrap [word-break:break-word] bg-slate-950/20"></pre>
+            <div class="flex flex-col sm:flex-row gap-3 p-2 glass-input rounded-xl mb-1">
+                <div class="flex-1 flex items-center gap-3 px-3 py-2 sm:py-0">
+                    <i id="inputIcon" class="fa-solid fa-magnifying-glass text-slate-400 text-sm"></i>
+                    <input type="text" id="urlInput" oninput="syncUrlInput(this.value)" onchange="syncUrlInput(this.value)" onpaste="setTimeout(() => syncUrlInput(this.value), 10)" onkeydown="handleInputKeyDown(event)"
+                           class="w-full bg-transparent border-none text-slate-100 placeholder-slate-500 text-sm focus:outline-none py-1" 
+                           placeholder="Enter product keywords (e.g., Wireless Headphones)...">
+                </div>
+                <button onclick="executeScrape()" id="scrapeBtn" 
+                        class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-sm font-bold px-6 py-3 rounded-lg transition-all duration-250 flex items-center justify-center gap-2 active:scale-[0.97] hover:scale-[1.01] shadow-lg shadow-indigo-950/60 group whitespace-nowrap">
+                    <span id="btnText">Search Products</span>
+                    <i class="fa-solid fa-arrow-right text-xs transition-transform group-hover:translate-x-1"></i>
+                </button>
+            </div>
+
+            <div id="searchNotice" class="mt-4 p-3.5 bg-teal-500/10 border border-teal-500/20 backdrop-blur-md rounded-xl text-teal-300 text-xs flex items-center gap-3 shadow-sm">
+                <i class="fa-solid fa-circle-info text-teal-400 text-sm shrink-0"></i>
+                <span class="leading-relaxed">Note: Search Products runs background engine browser instances to compile product layouts. This sequence requires advanced scheduling cycles.</span>
+            </div>
+
+            <div id="reviewsNotice" class="hidden mt-4 p-3.5 bg-indigo-500/10 border border-indigo-500/20 backdrop-blur-md rounded-xl text-indigo-300 text-xs flex items-center gap-3 shadow-sm">
+                <i class="fa-solid fa-circle-info text-indigo-400 text-sm shrink-0"></i>
+                <span class="leading-relaxed">Note: Product Reviews parser iterates multiple structural review segments dynamically. This complex pagination task can take extra execution overhead.</span>
+            </div>
+
+            <div id="skeletonContainer" class="hidden mt-5 border border-white/5 rounded-xl bg-slate-950/40 backdrop-blur-xl overflow-hidden shadow-2xl">
+                <div class="flex items-center justify-between px-5 py-4 bg-white/[0.01] border-b border-white/5 gap-4 flex-wrap">
+                    <div class="flex items-center min-w-0">
+                        <div class="text-xs font-mono font-bold uppercase tracking-wider bg-slate-900/80 px-2.5 py-1.5 rounded border border-white/5 flex items-center gap-2.5 truncate">
+                            <i class="fa-solid fa-circle-notch animate-spin text-teal-400 text-[11px] shrink-0" id="skeletonIcon"></i>
+                            <span id="skeletonTitle" class="font-mono font-semibold text-teal-400 tracking-wide text-[11px]">Querying Marketplace Index & Extracting Products...</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <button id="cancelTaskBtn" onclick="abortActiveTask()" 
+                                class="text-[11px] bg-red-500/10 hover:bg-red-500/20 text-red-400 px-3.5 py-1.5 rounded border border-red-500/20 transition duration-150 flex items-center gap-2 active:scale-[0.95] font-mono font-medium tracking-wide">
+                            <i class="fa-solid fa-ban text-[10px]"></i>
+                            <span>Cancel Task</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="p-5 md:p-6 space-y-4 font-mono select-none pointer-events-none animate-shimmer">
+                    <div class="h-3.5 bg-slate-900 rounded w-1/4 opacity-90"></div>
+                    <div class="space-y-2.5 pl-4">
+                        <div class="h-3 bg-slate-900/70 rounded w-1/3"></div>
+                        <div class="h-3 bg-slate-900/70 rounded w-3/4"></div>
+                        <div class="h-3 bg-slate-900/70 rounded w-1/2"></div>
+                    </div>
+                    <div class="space-y-2.5 pl-8">
+                        <div class="h-3 bg-slate-900/50 rounded w-2/5"></div>
+                        <div class="h-3 bg-slate-900/50 rounded w-3/5"></div>
+                    </div>
+                    <div class="h-3.5 bg-slate-900 rounded w-1/5 opacity-90 pt-1"></div>
+                </div>
+            </div>
+
+            <!-- ----- DYNAMIC MFA / OTP CODE INTERFACE BLOCK ----- -->
+            <div id="mfaContainer" class="hidden mt-5 glass-panel rounded-2xl border-purple-500/30 bg-purple-950/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)] p-6 relative overflow-hidden transition-all duration-300">
+                <div class="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-purple-500/50 to-transparent"></div>
+                
+                <div class="flex items-center gap-3 pb-4 mb-5 border-b border-white/[0.06]">
+                    <div class="bg-purple-500/10 p-2 rounded-lg border border-purple-500/20 text-purple-400">
+                        <i class="fa-solid fa-shield-halved text-sm animate-pulse"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold tracking-wide text-slate-100" id="mfaHeaderTitle">
+                            Choose Verification Method
+                        </h3>
+                        <p class="text-[11px] text-slate-400 mt-0.5 leading-relaxed" id="mfaHeaderDesc">
+                            Amazon needs to know how to send the one-time code for this login. Pick an option below to continue.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Direct Choice Buttons Form -->
+                <div id="mfaChoiceForm" class="hidden">
+                    <div id="mfaOptionsContainer" class="flex flex-col gap-3"></div>
+                </div>
+
+                <!-- Direct One-Time Code Entry Form -->
+                <div id="mfaCodeForm" class="hidden space-y-4">
+                    <label for="mfaOtpInput" class="text-[10px] font-mono text-slate-400 font-bold uppercase tracking-wider block">Enter One-Time Password (OTP):</label>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <div class="flex-1 flex items-center gap-3 glass-input rounded-xl px-4 py-2.5">
+                            <i class="fa-solid fa-key text-slate-500 text-xs"></i>
+                            <input type="text" id="mfaOtpInput" maxlength="8" pattern="\d*" placeholder="123456"
+                                   class="w-full bg-transparent border-none text-purple-300 placeholder-slate-600 text-sm font-mono tracking-widest focus:outline-none">
+                        </div>
+                        <button onclick="submitMfaCodePayload()" id="mfaCodeSubmitBtn"
+                                class="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold px-6 py-2.5 rounded-xl transition-all duration-150 flex items-center justify-center gap-2 whitespace-nowrap active:scale-[0.95] shadow-md shadow-indigo-950/50">
+                            <span>Verify</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="successNotice" class="hidden mt-5 p-4 bg-emerald-500/10 border border-emerald-500/20 backdrop-blur-md rounded-xl text-emerald-300 text-sm flex items-start gap-3 shadow-lg shadow-emerald-950/20">
+                <i class="fa-solid fa-circle-check mt-0.5 text-emerald-400 shrink-0"></i>
+                <span id="successMsg" class="leading-relaxed font-medium"></span>
+            </div>
+
+            <div id="error" class="hidden mt-5 p-4 bg-red-500/10 border border-red-500/20 backdrop-blur-md rounded-xl text-red-300 text-sm flex items-start gap-3 shadow-lg shadow-red-950/20">
+                <i class="fa-solid fa-circle-exclamation mt-0.5 text-red-400 shrink-0"></i>
+                <span id="errorMsg" class="leading-relaxed font-medium"></span>
+            </div>
+
+            <div id="resultContainer" class="hidden mt-5 border border-white/5 rounded-xl bg-slate-950/60 backdrop-blur-xl overflow-hidden shadow-2xl transition-all duration-300">
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center px-5 py-3.5 bg-white/[0.02] border-b border-white/5 gap-3">
+                    <div class="flex items-center gap-2.5 text-xs font-bold text-slate-400 uppercase tracking-wider select-none">
+                        <span class="text-teal-400 font-mono text-base leading-none">{}</span>
+                        <span id="payloadTypeLabel" class="tracking-wide">Marketplace Search JSON</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button id="downloadCsvBtn" onclick="downloadReviewsCsv()" 
+                                class="hidden text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-3.5 py-2 rounded-md border border-emerald-500/20 transition duration-150 flex items-center gap-1.5 active:scale-[0.95] shadow-sm font-semibold">
+                            <i class="fa-solid fa-file-csv text-sm"></i>
+                            <span>Download CSV</span>
+                        </button>
+                        
+                        <button onclick="copyToClipboard()" 
+                                class="text-xs bg-white/5 hover:bg-white/10 text-slate-300 px-3.5 py-2 rounded-md border border-white/5 transition duration-150 flex items-center gap-1.5 active:scale-[0.95] shadow-sm font-semibold">
+                            <i id="copyIcon" class="fa-regular fa-copy"></i>
+                            <span id="copyText">Copy Payload</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <pre id="output" class="json-container text-xs md:text-[14px] font-mono leading-relaxed max-h-[500px] overflow-auto p-5 md:p-6 text-slate-300 whitespace-pre-wrap [word-break:break-word] bg-slate-950/20"></pre>
+            </div>
+
         </div>
 
+        <div class="w-full lg:w-80 glass-panel p-6 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] transition-all duration-300 shrink-0">
+            <div class="flex items-center gap-3 mb-6 pb-5 border-b border-white/[0.06]">
+                <div class="bg-gradient-to-tr from-teal-500 to-emerald-500 p-2.5 rounded-xl shadow-lg shadow-emerald-900/30 ring-1 ring-white/20">
+                    <i class="fa-solid fa-chart-simple text-white text-base"></i>
+                </div>
+                <div>
+                    <h2 class="text-base font-bold tracking-tight text-slate-100">Task Stats</h2>
+                    <p class="text-[11px] text-slate-400 mt-0.5 font-medium">Session scrape task activity</p>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <div onclick="openHistoryModal('completed')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15 cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500/25 transition duration-200 active:scale-[0.98]">
+                    <div class="flex items-center gap-2.5 text-emerald-300/90 text-xs font-semibold">
+                        <i class="fa-solid fa-circle-check text-emerald-400"></i>
+                        <span>Completed</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="statCompleted" class="font-mono font-black text-emerald-400 text-lg">0</span>
+                        <i class="fa-solid fa-chevron-right text-emerald-500/40 text-[10px]"></i>
+                    </div>
+                </div>
+
+                <div onclick="openHistoryModal('failed')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-red-500/5 border border-red-500/15 cursor-pointer hover:bg-red-500/10 hover:border-red-500/25 transition duration-200 active:scale-[0.98]">
+                    <div class="flex items-center gap-2.5 text-red-300/90 text-xs font-semibold">
+                        <i class="fa-solid fa-circle-exclamation text-red-400"></i>
+                        <span>Failed</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="statFailed" class="font-mono font-black text-red-400 text-lg">0</span>
+                        <i class="fa-solid fa-chevron-right text-red-400/40 text-[10px]"></i>
+                    </div>
+                </div>
+
+                <div onclick="openHistoryModal('stopped')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-500/5 border border-amber-500/15 cursor-pointer hover:bg-amber-500/10 hover:border-amber-500/25 transition duration-200 active:scale-[0.98]">
+                    <div class="flex items-center gap-2.5 text-amber-300/90 text-xs font-semibold">
+                        <i class="fa-solid fa-ban text-amber-400"></i>
+                        <span>Stopped</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="statStopped" class="font-mono font-black text-amber-400 text-lg">0</span>
+                        <i class="fa-solid fa-chevron-right text-amber-400/40 text-[10px]"></i>
+                    </div>
+                </div>
+
+                <div class="h-[1px] w-full bg-white/[0.06] my-2"></div>
+
+                <div onclick="openHistoryModal('all')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.02] border border-white/5 cursor-pointer hover:bg-white/[0.05] hover:border-white/10 transition duration-200 active:scale-[0.98]">
+                    <div class="flex items-center gap-2.5 text-slate-300 text-xs font-semibold">
+                        <i class="fa-solid fa-list-check text-purple-400"></i>
+                        <span>Total Tasks</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="statTotal" class="font-mono font-black text-slate-200 text-lg">0</span>
+                        <i class="fa-solid fa-chevron-right text-purple-400/40 text-[10px]"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center justify-between mt-4 px-1">
+                <p class="text-[10px] text-slate-500 font-medium tracking-wide">Click a row to view log timeline</p>
+                <button onclick="clearAllTaskHistory()" class="text-[10px] font-semibold text-slate-500 hover:text-red-400 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-trash-can text-[9px]"></i> Clear
+                </button>
+            </div>
+        </div>
     </div>
 
-    <div class="w-full lg:w-80 glass-panel p-6 rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.6)] transition-all duration-300 shrink-0">
-        <div class="flex items-center gap-3 mb-6 pb-5 border-b border-white/[0.06]">
-            <div class="bg-gradient-to-tr from-teal-500 to-emerald-500 p-2.5 rounded-xl shadow-lg shadow-emerald-900/30 ring-1 ring-white/20">
-                <i class="fa-solid fa-chart-simple text-white text-base"></i>
-            </div>
-            <div>
-                <h2 class="text-base font-bold tracking-tight text-slate-100">Task Stats</h2>
-                <p class="text-[11px] text-slate-400 mt-0.5 font-medium">Session scrape task activity</p>
-            </div>
-        </div>
-
-        <div class="space-y-3">
-            <div onclick="openHistoryModal('completed')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-emerald-500/5 border border-emerald-500/15 cursor-pointer hover:bg-emerald-500/10 hover:border-emerald-500/25 transition duration-200 active:scale-[0.98]">
-                <div class="flex items-center gap-2.5 text-emerald-300/90 text-xs font-semibold">
-                    <i class="fa-solid fa-circle-check text-emerald-400"></i>
-                    <span>Completed</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span id="statCompleted" class="font-mono font-black text-emerald-400 text-lg">0</span>
-                    <i class="fa-solid fa-chevron-right text-emerald-500/40 text-[10px]"></i>
-                </div>
-            </div>
-
-            <div onclick="openHistoryModal('failed')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-red-500/5 border border-red-500/15 cursor-pointer hover:bg-red-500/10 hover:border-red-500/25 transition duration-200 active:scale-[0.98]">
-                <div class="flex items-center gap-2.5 text-red-300/90 text-xs font-semibold">
-                    <i class="fa-solid fa-circle-exclamation text-red-400"></i>
-                    <span>Failed</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span id="statFailed" class="font-mono font-black text-red-400 text-lg">0</span>
-                    <i class="fa-solid fa-chevron-right text-red-400/40 text-[10px]"></i>
-                </div>
-            </div>
-
-            <div onclick="openHistoryModal('stopped')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-amber-500/5 border border-amber-500/15 cursor-pointer hover:bg-amber-500/10 hover:border-amber-500/25 transition duration-200 active:scale-[0.98]">
-                <div class="flex items-center gap-2.5 text-amber-300/90 text-xs font-semibold">
-                    <i class="fa-solid fa-ban text-amber-400"></i>
-                    <span>Stopped</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span id="statStopped" class="font-mono font-black text-amber-400 text-lg">0</span>
-                    <i class="fa-solid fa-chevron-right text-amber-400/40 text-[10px]"></i>
-                </div>
-            </div>
-
-            <div class="h-[1px] w-full bg-white/[0.06] my-2"></div>
-
-            <div onclick="openHistoryModal('all')" class="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.02] border border-white/5 cursor-pointer hover:bg-white/[0.05] hover:border-white/10 transition duration-200 active:scale-[0.98]">
-                <div class="flex items-center gap-2.5 text-slate-300 text-xs font-semibold">
-                    <i class="fa-solid fa-list-check text-purple-400"></i>
-                    <span>Total Tasks</span>
-                </div>
-                <div class="flex items-center gap-2">
-                    <span id="statTotal" class="font-mono font-black text-slate-200 text-lg">0</span>
-                    <i class="fa-solid fa-chevron-right text-purple-400/40 text-[10px]"></i>
-                </div>
-            </div>
-        </div>
-
-        <div class="flex items-center justify-between mt-4 px-1">
-            <p class="text-[10px] text-slate-500 font-medium tracking-wide">Click a row to view log timeline</p>
-            <button onclick="clearAllTaskHistory()" class="text-[10px] font-semibold text-slate-500 hover:text-red-400 transition flex items-center gap-1.5">
-                <i class="fa-solid fa-trash-can text-[9px]"></i> Clear
-            </button>
-        </div>
-    </div>
-    </div>
-
+    <!-- Modals -->
     <div id="imageModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md opacity-0 transition-opacity duration-300" onclick="closeImageModal()">
         <div class="relative max-w-3xl w-full glass-panel rounded-2xl overflow-hidden shadow-2xl transform scale-95 transition-transform duration-300" onclick="event.stopPropagation()">
             <div class="flex justify-between items-center px-5 py-3 border-b border-white/5 bg-slate-900/60">
@@ -358,23 +357,34 @@
 
     <script>
         let stateCache = {
-            search: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null },
-            product: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null },
-            reviews: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null }
+            search: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null, mfaWaiting: false },
+            product: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null, mfaWaiting: false },
+            reviews: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null, mfaWaiting: false }
         };
         let activeMode = 'search'; 
-
         let taskStats = { completed: 0, failed: 0, stopped: 0 };
+        let taskHistory = [];
+        let taskHistoryCounter = 0;
+        let currentHistoryFilter = 'all';
+        let historyViewMode = 'list';
+        let mfaWorkerTimeoutId = null;
 
-        // Global tracking workers for authentication state checking
-        let mfaPollIntervalId = null;
-        let mfaChoicePollIntervalId = null;
-
-        // ---- Persistence (keeps stats/history across page refreshes) ----
         const STORAGE_KEY_STATS = 'amzScraper_taskStats';
         const STORAGE_KEY_HISTORY = 'amzScraper_taskHistory';
         const STORAGE_KEY_COUNTER = 'amzScraper_taskHistoryCounter';
         const MAX_PERSISTED_HISTORY = 200;
+
+        const MODE_LABELS = { search: 'Search Products', product: 'Product Details', reviews: 'Product Reviews' };
+        const MODE_ICONS = { search: 'fa-magnifying-glass', product: 'fa-box-open', reviews: 'fa-comments' };
+        const OUTCOME_META = {
+            completed: { label: 'Completed', color: 'emerald', icon: 'fa-circle-check' },
+            failed: { label: 'Failed', color: 'red', icon: 'fa-circle-exclamation' },
+            stopped: { label: 'Stopped', color: 'amber', icon: 'fa-ban' }
+        };
+
+        // Initialize state configuration
+        loadPersistedState();
+        updateStatsUI();
 
         function loadPersistedState() {
             try {
@@ -409,7 +419,7 @@
                     ));
                     localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(lighter));
                 } catch (err2) {
-                    console.error("Unable to persist task history (storage quota exceeded):", err2);
+                    console.error("Unable to persist task history:", err2);
                 }
             }
         }
@@ -451,24 +461,6 @@
             if (statStopped) statStopped.textContent = taskStats.stopped;
             if (statTotal) statTotal.textContent = total;
         }
-
-        // ---- Task History (per-operation detail log) ----
-        let taskHistory = [];
-        let taskHistoryCounter = 0;
-        let currentHistoryFilter = 'all';
-        let historyViewMode = 'list';
-
-        loadPersistedState();
-
-        const MODE_LABELS = { search: 'Search Products', product: 'Product Details', reviews: 'Product Reviews' };
-        const MODE_ICONS = { search: 'fa-magnifying-glass', product: 'fa-box-open', reviews: 'fa-comments' };
-        const OUTCOME_META = {
-            completed: { label: 'Completed', color: 'emerald', icon: 'fa-circle-check' },
-            failed: { label: 'Failed', color: 'red', icon: 'fa-circle-exclamation' },
-            stopped: { label: 'Stopped', color: 'amber', icon: 'fa-ban' }
-        };
-
-        updateStatsUI();
 
         function pushTaskHistory(record) {
             taskHistoryCounter++;
@@ -642,7 +634,6 @@
         }
 
         function setScrapeMode(mode) {
-            if (mode === activeMode) return;
             activeMode = mode;
 
             const modeProductBtn = document.getElementById('modeProductBtn');
@@ -655,8 +646,8 @@
             const downloadCsvBtn = document.getElementById('downloadCsvBtn');
             const errorContainer = document.getElementById('error');
             const payloadTypeLabel = document.getElementById('payloadTypeLabel');
-            const loader = document.getElementById('loader');
             const skeletonContainer = document.getElementById('skeletonContainer');
+            const mfaContainer = document.getElementById('mfaContainer');
             const btn = document.getElementById('scrapeBtn');
             const urlInput = document.getElementById('urlInput');
             const inputIcon = document.getElementById('inputIcon');
@@ -710,16 +701,22 @@
             if (stateCache[mode].isScraping) {
                 btn.disabled = true;
                 btn.classList.add('opacity-50', 'cursor-not-allowed');
-                if (loader) loader.classList.remove('hidden');
                 setupSkeletonText(mode);
-                skeletonContainer.classList.remove('hidden');
+                
+                if (stateCache[mode].mfaWaiting) {
+                    skeletonContainer.classList.add('hidden');
+                    mfaContainer.classList.remove('hidden');
+                } else {
+                    skeletonContainer.classList.remove('hidden');
+                    mfaContainer.classList.add('hidden');
+                }
                 resultContainer.classList.add('hidden');
                 downloadCsvBtn.classList.add('hidden');
             } else {
                 btn.disabled = false;
                 btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                if (loader) loader.classList.add('hidden');
                 if (skeletonContainer) skeletonContainer.classList.add('hidden');
+                if (mfaContainer) mfaContainer.classList.add('hidden');
                 
                 if (stateCache[mode].currentPayload) {
                     document.getElementById('output').innerHTML = syntaxHighlightJson(stateCache[mode].currentPayload);
@@ -834,24 +831,32 @@
             }
         });
 
-        let mfaWorkerTimeoutId = null;
-
         function startMfaMonitoringLoop() {
             if (mfaWorkerTimeoutId) return;
             
             async function pollSync() {
+                // Keep polling active as long as ANY tab is currently running a background scraper task
+                const anyScrapingActive = stateCache.search.isScraping || stateCache.product.isScraping || stateCache.reviews.isScraping;
+                if (!anyScrapingActive) {
+                    stopMfaMonitoringLoop();
+                    return;
+                }
+
                 try {
-                    // 1. Check if OTP selection choice is active first
+                    // Check if reviews engine is waiting for an MFA input router channel select layout
                     const choiceRes = await fetch('/api/otp/choice/status');
                     const choiceData = await choiceRes.json();
                     
                     if (choiceData.waiting) {
-                        renderMfaChoices(choiceData.options);
+                        stateCache.reviews.mfaWaiting = true;
+                        if (activeMode === 'reviews') {
+                            renderMfaChoices(choiceData.options);
+                        }
                         mfaWorkerTimeoutId = setTimeout(pollSync, 2000);
                         return;
                     }
 
-                    // 2. If no choice is pending, check standard input code state
+                    // Check if reviews engine is waiting for the numeric OTP key field code payload string 
                     const statusRes = await fetch('/api/otp/status');
                     const statusData = await statusRes.json();
                     
@@ -859,23 +864,26 @@
                     const codeForm = document.getElementById('mfaCodeForm');
 
                     if (statusData.waiting) {
-                        container.classList.remove('hidden');
-                        codeForm.classList.remove('hidden');
-                        document.getElementById('skeletonContainer')?.classList.add('hidden');
+                        stateCache.reviews.mfaWaiting = true;
+                        if (activeMode === 'reviews') {
+                            container.classList.remove('hidden');
+                            codeForm.classList.remove('hidden');
+                            document.getElementById('skeletonContainer')?.classList.add('hidden');
+                        }
                     } else {
-                        // Keep hidden until backend flags an active login intervention
+                        // Clear background execution locks if otp choice interface states are not required
                         if (document.getElementById('mfaChoiceForm').classList.contains('hidden')) {
-                            container.classList.add('hidden');
+                            stateCache.reviews.mfaWaiting = false;
+                            if (activeMode === 'reviews') {
+                                container.classList.add('hidden');
+                            }
                         }
                     }
                 } catch (err) {
                     console.error("MFA polling error: ", err);
                 }
                 
-                // Continue loop while scraping is active
-                if (stateCache[activeMode].isScraping) {
-                    mfaWorkerTimeoutId = setTimeout(pollSync, 2500); // Relax interval slightly to 2.5s
-                }
+                mfaWorkerTimeoutId = setTimeout(pollSync, 2500);
             }
 
             pollSync();
@@ -886,6 +894,9 @@
                 clearTimeout(mfaWorkerTimeoutId);
                 mfaWorkerTimeoutId = null;
             }
+            stateCache.search.mfaWaiting = false;
+            stateCache.product.mfaWaiting = false;
+            stateCache.reviews.mfaWaiting = false;
             document.getElementById('mfaContainer').classList.add('hidden');
         }
 
@@ -899,6 +910,8 @@
 
             container.classList.remove('hidden');
             choiceForm.classList.remove('hidden');
+            document.getElementById('mfaCodeForm').classList.add('hidden');
+            document.getElementById('skeletonContainer')?.classList.add('hidden');
             
             if (optionsWrapper.children.length === 0 && options) {
                 optionsWrapper.innerHTML = options.map((opt) => `
@@ -915,7 +928,6 @@
         async function submitDirectMfaChannelChoice(selectedValue) {
             if (!selectedValue) return;
 
-            // Optional: Provide instant subtle locking context inside the container layout
             const optionsWrapper = document.getElementById('mfaOptionsContainer');
             optionsWrapper.style.opacity = "0.5";
             optionsWrapper.style.pointerEvents = "none";
@@ -928,98 +940,16 @@
                 });
                 if (response.ok) {
                     document.getElementById('mfaChoiceForm').classList.add('hidden');
-                    // Reset container layouts cleaner for next dynamic state injection
                     optionsWrapper.innerHTML = ''; 
                 }
             } catch (err) {
-                console.error("Failed handling dynamic routing choice selection selection:", err);
+                console.error("Failed handling dynamic routing choice selection:", err);
             } finally {
                 optionsWrapper.style.opacity = "1";
                 optionsWrapper.style.pointerEvents = "auto";
             }
         }
 
-        // Long-polling handler checking for dynamic code demands
-        async function checkBackendMfaStatus() {
-            try {
-                const response = await fetch('/api/otp/status');
-                const data = await response.json();
-                const container = document.getElementById('mfaContainer');
-                const codeForm = document.getElementById('mfaCodeForm');
-
-                if (data.waiting) {
-                    container.classList.remove('hidden');
-                    codeForm.classList.remove('hidden');
-                    document.getElementById('skeletonContainer')?.classList.add('hidden'); // Pause loading banner visibility
-                } else {
-                    codeForm.classList.add('hidden');
-                    if (document.getElementById('mfaChoiceForm').classList.contains('hidden')) {
-                        container.classList.add('hidden');
-                    }
-                }
-            } catch (err) {
-                console.error("MFA checking exception encountered: ", err);
-            }
-        }
-
-        // Long-polling checking for dynamic channel choices
-        async function checkBackendMfaChannelChoices() {
-            try {
-                const response = await fetch('/api/otp/choice/status');
-                const data = await response.json();
-                const container = document.getElementById('mfaContainer');
-                const choiceForm = document.getElementById('mfaChoiceForm');
-                const optionsWrapper = document.getElementById('mfaOptionsContainer');
-
-                if (data.waiting && data.options && data.options.length > 0) {
-                    container.classList.remove('hidden');
-                    choiceForm.classList.remove('hidden');
-                    
-                    // Build modern target-selection loops if empty to prevent dynamic layout resetting
-                    if (optionsWrapper.children.length === 0) {
-                        optionsWrapper.innerHTML = data.options.map((opt, index) => `
-                            <label class="flex items-center gap-3 p-3 rounded-lg bg-slate-900/60 border border-white/5 cursor-pointer hover:bg-slate-900 transition text-xs font-medium text-slate-300">
-                                <input type="radio" name="mfaChannelOption" value="${opt}" ${index === 0 ? 'checked' : ''} class="accent-purple-500">
-                                <span>${opt}</span>
-                            </label>
-                        `).join('');
-                    }
-                } else {
-                    choiceForm.classList.add('hidden');
-                    optionsWrapper.innerHTML = ''; // Wipe choices down safely
-                }
-            } catch (err) {
-                console.error("MFA choice configuration tracking exception: ", err);
-            }
-        }
-
-        // Route delivery method choices up to API endpoint
-        async function submitMfaChannelChoice() {
-            const selectedRadio = document.querySelector('input[name="mfaChannelOption"]:checked');
-            if (!selectedRadio) return;
-
-            const btn = document.getElementById('mfaChoiceSubmitBtn');
-            btn.disabled = true;
-            btn.classList.add('opacity-50');
-
-            try {
-                const response = await fetch('/api/otp/choice/submit', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ choice: selectedRadio.value })
-                });
-                if (response.ok) {
-                    document.getElementById('mfaChoiceForm').classList.add('hidden');
-                }
-            } catch (err) {
-                console.error("Failed handling delivery configuration dispatch:", err);
-            } finally {
-                btn.disabled = false;
-                btn.classList.remove('opacity-50');
-            }
-        }
-
-        // Push OTP code directly to Amazon's dynamic fields
         async function submitMfaCodePayload() {
             const codeInput = document.getElementById('mfaOtpInput');
             const codeValue = codeInput.value.trim();
@@ -1037,8 +967,9 @@
                 });
                 if (response.ok) {
                     codeInput.value = '';
+                    stateCache.reviews.mfaWaiting = false;
                     document.getElementById('mfaContainer').classList.add('hidden');
-                    document.getElementById('skeletonContainer')?.classList.remove('hidden'); // Resume layout trackers
+                    document.getElementById('skeletonContainer')?.classList.remove('hidden');
                 }
             } catch (err) {
                 console.error("OTP payload entry distribution failed: ", err);
@@ -1080,7 +1011,6 @@
             let taskErrorMessage = "";
             const taskStartedAt = Date.now();
             const btn = document.getElementById('scrapeBtn');
-            const loader = document.getElementById('loader');
             const errorContainer = document.getElementById('error');
             const errorMsg = document.getElementById('errorMsg');
             const resultContainer = document.getElementById('resultContainer');
@@ -1130,10 +1060,10 @@
             stateCache[currentWorkingMode].currentPayload = null;
             stateCache[currentWorkingMode].scrapedRawData = null;
             stateCache[currentWorkingMode].activeTaskKey = taskKey;
+            stateCache[currentWorkingMode].mfaWaiting = false;
 
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
-            if (loader) loader.classList.remove('hidden');
             if (errorContainer) errorContainer.classList.add('hidden');
             
             document.getElementById('successNotice')?.classList.add('hidden');
@@ -1144,7 +1074,6 @@
             setupSkeletonText(currentWorkingMode);
             if (skeletonContainer) skeletonContainer.classList.remove('hidden');
 
-            // Trigger structural dynamic MFA/OTP monitoring interval workers
             startMfaMonitoringLoop();
 
             try {
@@ -1202,8 +1131,8 @@
                     }
                 }
             } finally {
-                // Shut down any structural open MFA checks cleanly
-                stopMfaMonitoringLoop();
+                stateCache[currentWorkingMode].isScraping = false;
+                stateCache[currentWorkingMode].mfaWaiting = false;
 
                 recordTaskOutcome(taskOutcome);
                 pushTaskHistory({
@@ -1217,13 +1146,12 @@
                     errorMessage: taskErrorMessage,
                     payload: taskOutcome === 'completed' ? stateCache[currentWorkingMode].currentPayload : null
                 });
-                stateCache[currentWorkingMode].isScraping = false;
 
                 if (activeMode === currentWorkingMode) {
                     btn.disabled = false;
                     btn.classList.remove('opacity-50', 'cursor-not-allowed');
-                    if (loader) loader.classList.add('hidden');
                     if (skeletonContainer) skeletonContainer.classList.add('hidden');
+                    document.getElementById('mfaContainer').classList.add('hidden');
                     
                     const hasSuccessNotice = !document.getElementById('successNotice').classList.contains('hidden');
                     
