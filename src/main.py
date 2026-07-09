@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 # ----- local imports -----
+from src.classes.BrowserManager import BrowserManager
 from src.classes.PollingEndpointAccessFilter import PollingEndpointAccessFilter
 from src.classes.OtpChoiceRequest import OtpChoiceRequest
 from src.classes.OtpManager import OtpManager
@@ -49,6 +50,7 @@ else:
     )
 
 
+# ----- to cancel running task -----
 async def _run_cancellable(task_key: str, coro, request: Request):
     task = asyncio.ensure_future(coro)
     _active_tasks[task_key] = task
@@ -312,13 +314,22 @@ async def otp_choice_submit(body: OtpChoiceRequest):
 
     accepted = OtpManager.submit_choice(choice)
     if not accepted:
-        logger.warning("OTP choice submission rejected; no waiting choice request was active.")
+        logger.warning(
+            "OTP choice submission rejected; no waiting choice request was active."
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No active OTP delivery-method request found, or the submitted option was invalid.",
         )
 
     return JSONResponse(content={"submitted": True})
+
+
+# ----- graceful shutdown: flush persistent browser session to disk -----
+@app.on_event("shutdown")
+async def shutdown_event():
+    logger.info("Application shutting down. Closing persistent browser context...")
+    await BrowserManager.close()
 
 
 # ----- explicit cancel endpoint -----
