@@ -77,3 +77,20 @@ OTP_SEND_BUTTON_FALLBACKS = [
     "#cvf-page-content button[type='submit']",
     "input[aria-labelledby*='send-otp']",
 ]
+
+# ----- css selectors for next page button -----
+NEXT_PAGE_SELECTORS = [
+    "li.a-last a",
+    "ul.a-pagination li.a-last a",
+    "a.s-pagination-next",
+    "[data-hook='show-more-button']",
+]
+
+# ----- search scraper constants -----
+SEARCH_NEXT_PAGE_SELECTORS = [
+    "a.s-pagination-next",
+    "span.s-pagination-strip a.s-pagination-next",
+    "ul.a-pagination li.a-last a",
+    "li.a-last a",
+    "a[aria-label='Go to next page']",
+]
