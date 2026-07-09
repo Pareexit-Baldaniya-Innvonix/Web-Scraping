@@ -18,9 +18,8 @@ WEB-SCRAPING/
 │   └── searches/
 │       └── search_{query}.json  # Search results exported as JSON (auto-generated)
 ├── src/
-│   ├── amazon_user_session/     # Reserved for per-ASIN/per-query session dirs (auto-generated, currently unused — see note below)
-│   │   ├── reviews_{ASIN}/      # Created per-ASIN but not wired into the browser context
-│   │   └── search_{query_slug}/ # Created per-query but not wired into the browser context
+│   ├── amazon_user_session/     # Persistent Chromium user-data-dir for the shared Playwright context (auto-generated, git-ignored — see note below)
+│   │   └── Default/             # Standard Chromium profile data written here by Playwright: Cookies, Cache, Local Storage, Session Storage, Service Worker, etc.
 │   ├── classes/
 │   │   ├── BrowserManager.py            # Shared, process-lifetime Chromium browser/context singleton
 │   │   ├── OtpChoiceRequest.py          # Pydantic body model for the OTP delivery-method popup
@@ -49,7 +48,7 @@ WEB-SCRAPING/
 ├── .dockerignore                # Files excluded from the Docker build context
 ├── .env                         # Local environment variables (git-ignored)
 ├── .gitignore
-├── docker-compose.yml           # One-command container orchestration (build, ports, volumes, healthcheck)
+├── docker-compose.yml           # One-command container orchestration (build, ports, volumes)
 ├── Dockerfile                   # Container image definition (Python 3.12 + Playwright/Chromium)
 ├── example.env                  # Example env file for reference
 ├── Pipfile                      # Pipenv dependency manifest
@@ -80,7 +79,7 @@ WEB-SCRAPING/
 
 - **Automatic Amazon sign-in** — if credentials are provided via `.env`, the scraper detects login/OTP pages and handles authentication automatically before resuming scraping. Supports both email+password and password-only flows, and pauses for OTP/MFA resolution if required.
 
-- **Shared, in-memory Playwright browser context** — `BrowserManager` launches a single Chromium `browser`/`context` the first time it's needed and reuses it for every subsequent search and reviews run for the lifetime of the running server process. This means a successful login carries over to later searches/reviews within the same server run, but it is **not** written to disk — restarting the server loses the session and requires signing in again. (`Scraper.py` still computes per-ASIN/per-query paths under `amazon_user_session/`, but these are currently unused placeholders — no persistent Playwright context is actually launched from them.)
+- **Shared, disk-persisted Playwright browser context** — `BrowserManager` launches a single Chromium context the first time it's needed, via Playwright's `launch_persistent_context(user_data_dir=SESSION_DIR)` (`SESSION_DIR` = `src/amazon_user_session/`), and reuses that same context for every subsequent search and reviews run for the lifetime of the running server process. Because the profile is a real Chromium user-data directory rather than an in-memory session, cookies and login state are written straight to disk as they change — so a successful sign-in survives not just later requests within the same run, but also a server restart, as long as `amazon_user_session/` isn't deleted (in Docker, this directory is a mounted volume, so it also survives container restarts/rebuilds — see [🐳 Docker](#-docker)). If the context is closed unexpectedly, `BrowserManager` resets its internal state so the next request transparently relaunches it from the same on-disk profile.
 
 - **Atomic search file writes** — search progress is first written to a `.tmp` file and then atomically replaced, preventing partial or corrupt output on interruption.
 - Saves the raw HTML of the most recent `/api/scrape` response for debugging (`output/source.html`, overwritten on every scrape)
@@ -176,7 +175,7 @@ In `production`, logs are emitted as **JSON**. In `development`, logs use a huma
 
 > **Note:** `AMAZON_EMAIL` and `AMAZON_PASSWORD` may be left blank. If a login page is detected and no credentials are configured, the scraper logs a warning and continues — but session-gated content may not be accessible.
 
-> ⚠️ **Important — the email must already have a registered Amazon account:** Auto sign-in requires an email/password pair for an account that **already exists** on Amazon. If Amazon doesn't recognize the email (shows a "Create account" prompt or similar "new to Amazon" screen), the scraper does not attempt to register one — it immediately raises an error and aborts that sign-in attempt (see the [🔑 Auto Sign-in](#-auto-sign-in) section). If the email/password **do** belong to an existing account but Amazon still challenges the login with an OTP/MFA step (e.g. a new or unrecognized device), that challenge is resolved through the **dashboard OTP popup** — no visible browser window is needed, even with the default `HEADLESS = True`. Once OTP verification is completed for an existing account, the login is kept alive in the shared in-memory browser context for the rest of that server process's lifetime, so later searches/reviews in the same run won't require OTP again — but the session is **not** persisted to disk, so restarting the server (or container) resets it and any required OTP verification will run again on the next run.
+> ⚠️ **Important — the email must already have a registered Amazon account:** Auto sign-in requires an email/password pair for an account that **already exists** on Amazon. If Amazon doesn't recognize the email (shows a "Create account" prompt or similar "new to Amazon" screen), the scraper does not attempt to register one — it immediately raises an error and aborts that sign-in attempt (see the [🔑 Auto Sign-in](#-auto-sign-in) section). If the email/password **do** belong to an existing account but Amazon still challenges the login with an OTP/MFA step (e.g. a new or unrecognized device), that challenge is resolved through the **dashboard OTP popup** — no visible browser window is needed, even with the default `HEADLESS = True`. Once OTP verification is completed for an existing account, the login is kept alive in the shared browser context (backed by the on-disk profile at `src/amazon_user_session/`) for the rest of that server process's lifetime, so later searches/reviews in the same run won't require OTP again — and because the profile is written to disk (and, in Docker, mounted as a volume), a server or container restart normally does **not** clear it either, so OTP shouldn't be required again unless the `amazon_user_session/` directory is deleted or Amazon invalidates the session itself.
 
 ---
 
@@ -219,9 +218,11 @@ docker compose up --build
 
 This builds the image, starts the container in the foreground, and:
 - publishes the API on `http://127.0.0.1:8000`
-- mounts `./logs`, `./output`, and `./src/amazon_user_session` as volumes so scrape/search/review output and log files persist on the host across container restarts
+- mounts `./logs`, `./output`, and `./src/amazon_user_session` as volumes, so scrape/search/review output, log files, **and** the persistent Chromium sign-in profile all survive container restarts and rebuilds on the host
 - allocates a 1 GB `/dev/shm` (`shm_size`), since Chromium's default shared-memory allowance is too small and will crash on memory-heavy pages
-- runs a container healthcheck against `GET /api/tasks` every 30 seconds
+- restarts automatically unless explicitly stopped (`restart: unless-stopped`), with a `30s` grace period on shutdown so `BrowserManager` can flush the browser context to disk cleanly
+
+> **Note:** Neither `docker-compose.yml` nor the `Dockerfile` currently defines a container `HEALTHCHECK`. `GET /api/tasks` is a lightweight endpoint you can point your own external monitoring/orchestration at if you need one.
 
 Run it in the background instead with:
 
@@ -258,7 +259,7 @@ docker run -d \
 - `playwright install --with-deps chromium` installs both the Chromium binary and the OS-level shared libraries it needs, so no manual `apt-get` step is required.
 - The app runs as a non-root `appuser`, not `root` — Chromium's sandbox works fine unprivileged, so there's no need to disable it with `--no-sandbox`.
 - `uvicorn` is started **without** `--reload` (reload is a filesystem-watching dev convenience with no place in a built image — code changes require rebuilding).
-- `logs/`, `output/{reviews,searches}/`, and `src/amazon_user_session/` are created at build time and are the same paths the volumes above mount over, so nothing is lost if you skip the volume mounts (it just won't persist between container runs).
+- `logs/`, `output/{reviews,searches}/`, and `src/amazon_user_session/` are created at build time and are the same paths the volumes above mount over. `src/amazon_user_session/` in particular is where Playwright's `launch_persistent_context` writes the Chromium sign-in profile (Cookies, Cache, Local Storage, etc.) — if you skip the volume mounts, the app still works, it just won't persist logs, scrape output, or the signed-in session between container runs.
 
 ### Headless mode inside the container
 
@@ -621,7 +622,7 @@ Neither the reviews scraper nor the product search has a hardcoded page cap in c
 
 When `AMAZON_EMAIL` and `AMAZON_PASSWORD` are set in `.env`, the scraper can automatically authenticate whenever Amazon redirects to a login page during Playwright-driven scraping (both review and product search runs). All Playwright-driven scraping shares a single `BrowserManager`-managed Chromium context for the lifetime of the running server process, so a successful sign-in is reused by later searches/reviews within that same run.
 
-> ⚠️ **Auto sign-in requires an email/password for an account that already exists on Amazon.** If the email is unrecognized (Amazon shows a "Create account" prompt or "We cannot find an account with that email address"), the scraper does **not** try to create one — it raises `RuntimeError("Login Error - New user detected. Please use a registered email id and password.")` and the sign-in attempt fails immediately; there is no manual-resolution path for this case. If the credentials **do** match an existing account but Amazon still challenges the login with an OTP/MFA step (e.g. an unrecognized device), that step **is** handled manually through the **dashboard OTP popup** rather than a visible browser window (see [🔑 OTP & MFA Dashboard Popup](#-otp--mfa-dashboard-popup)). Once the OTP is submitted and login is complete, the shared browser context stays signed in for the rest of that server process's lifetime, so subsequent runs in the same session won't require OTP again. This is **not** saved to disk, though — restarting the server (or container) clears the login state, and any required OTP step (or standard sign-in) will run again on the next run.
+> ⚠️ **Auto sign-in requires an email/password for an account that already exists on Amazon.** If the email is unrecognized (Amazon shows a "Create account" prompt or "We cannot find an account with that email address"), the scraper does **not** try to create one — it raises `RuntimeError("Login Error - New user detected. Please use a registered email id and password.")` and the sign-in attempt fails immediately; there is no manual-resolution path for this case. If the credentials **do** match an existing account but Amazon still challenges the login with an OTP/MFA step (e.g. an unrecognized device), that step **is** handled manually through the **dashboard OTP popup** rather than a visible browser window (see [🔑 OTP & MFA Dashboard Popup](#-otp--mfa-dashboard-popup)). Once the OTP is submitted and login is complete, the shared browser context stays signed in for the rest of that server process's lifetime, so subsequent runs in the same session won't require OTP again. Because the context is a `launch_persistent_context` profile written to `src/amazon_user_session/` on disk (and mounted as a Docker volume in `docker-compose.yml`), the signed-in state normally **survives** a server or container restart too — the next run will only need to sign in (and possibly complete OTP) again if `amazon_user_session/` is deleted/not mounted, or if Amazon itself invalidates the session.
 
 The sign-in flow handles:
 - **Email + password** — fills email, clicks Continue, then fills password and submits
@@ -632,7 +633,7 @@ The sign-in flow handles:
 
 - **Unrecognized email ("new user") prompt** — if Amazon indicates the email isn't recognized (e.g. a "Create account" prompt or "We cannot find an account with that email address"), the scraper does **not** attempt to create an account. It immediately raises a `RuntimeError` ("Login Error - New user detected. Please use a registered email id and password.") which aborts the current sign-in attempt — the request fails fast with that message rather than pausing for manual resolution. Use an email/password pair for an **existing, already-verified** Amazon account instead.
 
-After a successful login, the scraper automatically navigates back to the original target URL and resumes scraping. Login state lives only in the shared, in-memory `BrowserManager` context for that server process — later scrape/search/reviews runs during the same server session reuse it without re-authenticating, but nothing is written to disk, so a server restart clears it and the next run will need to sign in (and possibly complete OTP verification) again.
+After a successful login, the scraper automatically navigates back to the original target URL and resumes scraping. Login state lives in the shared `BrowserManager` context, which is a Chromium profile persisted on disk at `src/amazon_user_session/` (mounted as a volume in Docker) — later search/reviews runs (the two Playwright-driven endpoints that go through `BrowserManager`), including ones after a server or container restart, generally reuse it without re-authenticating. `/api/scrape` never touches `BrowserManager` at all — it uses a plain `requests.Session`, so this sign-in flow doesn't apply to it. A fresh sign-in (and possibly OTP verification) is only needed again if that directory is missing/deleted, isn't mounted, or Amazon invalidates the session server-side.
 
 ---
 
@@ -675,6 +676,7 @@ logger = get_logger("MY_MODULE")
 | File | Description |
 |---|---|
 | `output/source.html` | Raw HTML fetched from Amazon for the most recent `/api/scrape` call (overwritten every scrape, not per-ASIN) |
+| `output/debug_otp_page.png` | Full-page screenshot saved automatically when an OTP/verification page can't be resolved, for debugging (overwritten on each occurrence) |
 | `output/reviews/reviews_{ASIN}.csv` | All paginated reviews for that ASIN in CSV format |
 | `output/reviews/reviews_{ASIN}.json` | All paginated reviews for that ASIN in JSON format |
 | `output/searches/search_{query}.json` | All search result products for that query in JSON format |
