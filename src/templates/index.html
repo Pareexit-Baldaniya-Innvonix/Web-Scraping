@@ -207,6 +207,7 @@
                         <div class="flex-1 flex items-center gap-3 glass-input rounded-xl px-4 py-2.5">
                             <i class="fa-solid fa-key text-slate-500 text-xs"></i>
                             <input type="text" id="mfaOtpInput" maxlength="8" pattern="\d*" placeholder="123456"
+                                   onkeydown="if(event.key === 'Enter') { event.preventDefault(); submitMfaCodePayload(); }"
                                    class="w-full bg-transparent border-none text-purple-300 placeholder-slate-600 text-sm font-mono tracking-widest focus:outline-none">
                         </div>
                         <button onclick="submitMfaCodePayload()" id="mfaCodeSubmitBtn"
@@ -357,9 +358,9 @@
 
     <script>
         let stateCache = {
-            search: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null, mfaWaiting: false },
-            product: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null, mfaWaiting: false },
-            reviews: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null, mfaWaiting: false }
+            search: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null, mfaWaiting: false, mfaStep: null, mfaOptions: null },
+            product: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null, mfaWaiting: false, mfaStep: null, mfaOptions: null },
+            reviews: { inputVal: "", currentPayload: null, scrapedRawData: null, isScraping: false, activeTaskKey: null, mfaWaiting: false, mfaStep: null, mfaOptions: null }
         };
         let activeMode = 'search'; 
         let taskStats = { completed: 0, failed: 0, stopped: 0 };
@@ -705,7 +706,13 @@
                 
                 if (stateCache[mode].mfaWaiting) {
                     skeletonContainer.classList.add('hidden');
-                    mfaContainer.classList.remove('hidden');
+                    if (stateCache[mode].mfaStep === 'choice') {
+                        renderMfaChoices(stateCache[mode].mfaOptions);
+                    } else if (stateCache[mode].mfaStep === 'code') {
+                        renderMfaCodeForm();
+                    } else {
+                        mfaContainer.classList.remove('hidden');
+                    }
                 } else {
                     skeletonContainer.classList.remove('hidden');
                     mfaContainer.classList.add('hidden');
@@ -843,47 +850,40 @@
                 }
 
                 try {
-                    // Check if reviews engine is waiting for an MFA input router channel select layout
-                    const choiceRes = await fetch('/api/otp/choice/status');
+                    // Check choice and status channels correctly in parallel
+                    const [choiceRes, statusRes] = await Promise.all([
+                        fetch('/api/otp/choice/status'),
+                        fetch('/api/otp/status')
+                    ]);
                     const choiceData = await choiceRes.json();
-                    
+                    const statusData = await statusRes.json();
+
                     if (choiceData.waiting) {
                         stateCache.reviews.mfaWaiting = true;
+                        stateCache.reviews.mfaStep = 'choice';
+                        stateCache.reviews.mfaOptions = choiceData.options;
                         if (activeMode === 'reviews') {
                             renderMfaChoices(choiceData.options);
                         }
-                        mfaWorkerTimeoutId = setTimeout(pollSync, 2000);
-                        return;
-                    }
-
-                    // Check if reviews engine is waiting for the numeric OTP key field code payload string 
-                    const statusRes = await fetch('/api/otp/status');
-                    const statusData = await statusRes.json();
-                    
-                    const container = document.getElementById('mfaContainer');
-                    const codeForm = document.getElementById('mfaCodeForm');
-
-                    if (statusData.waiting) {
+                    } else if (statusData.waiting) {
                         stateCache.reviews.mfaWaiting = true;
+                        stateCache.reviews.mfaStep = 'code';
                         if (activeMode === 'reviews') {
-                            container.classList.remove('hidden');
-                            codeForm.classList.remove('hidden');
-                            document.getElementById('skeletonContainer')?.classList.add('hidden');
+                            renderMfaCodeForm();
                         }
                     } else {
-                        // Clear background execution locks if otp choice interface states are not required
-                        if (document.getElementById('mfaChoiceForm').classList.contains('hidden')) {
-                            stateCache.reviews.mfaWaiting = false;
-                            if (activeMode === 'reviews') {
-                                container.classList.add('hidden');
-                            }
+                        stateCache.reviews.mfaWaiting = false;
+                        stateCache.reviews.mfaStep = null;
+                        stateCache.reviews.mfaOptions = null;
+                        if (activeMode === 'reviews') {
+                            document.getElementById('mfaContainer').classList.add('hidden');
                         }
                     }
                 } catch (err) {
                     console.error("MFA polling error: ", err);
                 }
                 
-                mfaWorkerTimeoutId = setTimeout(pollSync, 2500);
+                mfaWorkerTimeoutId = setTimeout(pollSync, 2000);
             }
 
             pollSync();
@@ -897,6 +897,8 @@
             stateCache.search.mfaWaiting = false;
             stateCache.product.mfaWaiting = false;
             stateCache.reviews.mfaWaiting = false;
+            stateCache.reviews.mfaStep = null;
+            stateCache.reviews.mfaOptions = null;
             document.getElementById('mfaContainer').classList.add('hidden');
         }
 
@@ -913,24 +915,43 @@
             document.getElementById('mfaCodeForm').classList.add('hidden');
             document.getElementById('skeletonContainer')?.classList.add('hidden');
             
-            if (optionsWrapper.children.length === 0 && options) {
-                optionsWrapper.innerHTML = options.map((opt) => `
+            optionsWrapper.style.opacity = "1";
+            optionsWrapper.style.pointerEvents = "auto";
+            optionsWrapper.innerHTML = (options || []).map((opt) => {
+                const escapedOpt = opt.replace(/'/g, "\\'");
+                return `
                     <button type="button" 
-                            onclick="submitDirectMfaChannelChoice('${opt}')" 
-                            onkeydown="if(event.key === 'Enter') { event.preventDefault(); submitDirectMfaChannelChoice('${opt}'); }"
+                            onclick="submitDirectMfaChannelChoice('${escapedOpt}')" 
+                            onkeydown="if(event.key === 'Enter') { event.preventDefault(); submitDirectMfaChannelChoice('${escapedOpt}'); }"
                             class="w-full text-left flex items-center justify-between px-5 py-4 rounded-xl bg-slate-950/40 border border-white/[0.04] hover:border-purple-500/40 hover:bg-purple-950/10 focus:outline-none focus:border-purple-500/60 focus:bg-purple-950/10 transition-all duration-200 text-xs font-medium text-slate-300 group shadow-inner active:scale-[0.99]">
-                        <span class="group-hover:text-slate-100 group-focus:text-slate-100 transition duration-150">${opt}</span>
+                        <span class="group-hover:text-slate-100 group-focus:text-slate-100 transition duration-150">${escapeHtml(opt)}</span>
                     </button>
-                `).join('');
-            }
+                `;
+            }).join('');
+        }
+
+        function renderMfaCodeForm() {
+            const container = document.getElementById('mfaContainer');
+
+            document.getElementById('mfaHeaderTitle').textContent = "Enter Verification Code";
+            document.getElementById('mfaHeaderDesc').textContent = "Amazon has sent a one-time code for this login. Enter it below to continue.";
+
+            container.classList.remove('hidden');
+            document.getElementById('mfaChoiceForm').classList.add('hidden');
+            document.getElementById('mfaOptionsContainer').innerHTML = '';
+            document.getElementById('mfaCodeForm').classList.remove('hidden');
+            document.getElementById('skeletonContainer')?.classList.add('hidden');
         }
 
         async function submitDirectMfaChannelChoice(selectedValue) {
             if (!selectedValue) return;
 
             const optionsWrapper = document.getElementById('mfaOptionsContainer');
+            const errorContainer = document.getElementById('error');
+            const errorMsg = document.getElementById('errorMsg');
             optionsWrapper.style.opacity = "0.5";
             optionsWrapper.style.pointerEvents = "none";
+            if (errorContainer) errorContainer.classList.add('hidden');
 
             try {
                 const response = await fetch('/api/otp/choice/submit', {
@@ -939,12 +960,21 @@
                     body: JSON.stringify({ choice: selectedValue })
                 });
                 if (response.ok) {
+                    stateCache.reviews.mfaStep = null;
+                    stateCache.reviews.mfaOptions = null;
                     document.getElementById('mfaChoiceForm').classList.add('hidden');
-                    optionsWrapper.innerHTML = ''; 
+                    optionsWrapper.innerHTML = '';
+                } else {
+                    const data = await response.json().catch(() => ({}));
+                    if (errorMsg && errorContainer) {
+                        errorMsg.textContent = data.detail || "Failed to submit the selected verification method.";
+                        errorContainer.classList.remove('hidden');
+                    }
+                    optionsWrapper.style.opacity = "1";
+                    optionsWrapper.style.pointerEvents = "auto";
                 }
             } catch (err) {
                 console.error("Failed handling dynamic routing choice selection:", err);
-            } finally {
                 optionsWrapper.style.opacity = "1";
                 optionsWrapper.style.pointerEvents = "auto";
             }
@@ -956,8 +986,11 @@
             if (!codeValue) return;
 
             const btn = document.getElementById('mfaCodeSubmitBtn');
+            const errorContainer = document.getElementById('error');
+            const errorMsg = document.getElementById('errorMsg');
             btn.disabled = true;
             btn.classList.add('opacity-50');
+            if (errorContainer) errorContainer.classList.add('hidden');
 
             try {
                 const response = await fetch('/api/otp/submit', {
@@ -968,8 +1001,15 @@
                 if (response.ok) {
                     codeInput.value = '';
                     stateCache.reviews.mfaWaiting = false;
+                    stateCache.reviews.mfaStep = null;
                     document.getElementById('mfaContainer').classList.add('hidden');
                     document.getElementById('skeletonContainer')?.classList.remove('hidden');
+                } else {
+                    const data = await response.json().catch(() => ({}));
+                    if (errorMsg && errorContainer) {
+                        errorMsg.textContent = data.detail || "Failed to submit the verification code.";
+                        errorContainer.classList.remove('hidden');
+                    }
                 }
             } catch (err) {
                 console.error("OTP payload entry distribution failed: ", err);
@@ -1061,6 +1101,8 @@
             stateCache[currentWorkingMode].scrapedRawData = null;
             stateCache[currentWorkingMode].activeTaskKey = taskKey;
             stateCache[currentWorkingMode].mfaWaiting = false;
+            stateCache[currentWorkingMode].mfaStep = null;
+            stateCache[currentWorkingMode].mfaOptions = null;
 
             btn.disabled = true;
             btn.classList.add('opacity-50', 'cursor-not-allowed');
@@ -1133,6 +1175,8 @@
             } finally {
                 stateCache[currentWorkingMode].isScraping = false;
                 stateCache[currentWorkingMode].mfaWaiting = false;
+                stateCache[currentWorkingMode].mfaStep = null;
+                stateCache[currentWorkingMode].mfaOptions = null;
 
                 recordTaskOutcome(taskOutcome);
                 pushTaskHistory({
