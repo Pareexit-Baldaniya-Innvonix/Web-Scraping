@@ -1,4 +1,5 @@
 # ----- library import -----
+import re
 from pathlib import Path
 from typing import Dict
 
@@ -28,6 +29,25 @@ PAGE_DELAY = 1.2
 SCROLL_DELAY = 0.5
 CAPTCHA_WAIT = 120
 
+# ----- pre-compiled regex patterns for performance -----
+REGEX_ASIN = re.compile(
+    r"/(?:dp|gp/product|product-reviews)/([A-Z0-9]{10})", re.IGNORECASE
+)
+REGEX_IMAGE_EXT = re.compile(r"\.[A-Za-z0-9]+$")
+REGEX_IMAGE_SIZE = re.compile(
+    r"\._[A-Z0-9_,.-]+_\.(?:jpg|jpeg|png|gif)$", re.IGNORECASE
+)
+REGEX_RATING = re.compile(r"([\d.]+)")
+REGEX_NON_DIGIT = re.compile(r"[^\d]")
+REGEX_TITLE_STRIP = re.compile(r"^[\d.]+\s*out\s*of\s*5\s*stars\s*", re.IGNORECASE)
+REGEX_VARIANT_ROW = re.compile(r"^inline-twister-row-")
+REGEX_WHITESPACE = re.compile(r"\s+")
+REGEX_DELIVERY_DATE = re.compile(
+    r"\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[,.]?\s*(\d{4})?\b",
+    re.IGNORECASE,
+)
+REGEX_PRICE_CLEAN = re.compile(r"[^\d.]")
+
 # ----- timeout for otp input -----
 OTP_WAIT_TIMEOUT = 180
 
@@ -36,23 +56,6 @@ SIGNIN_MAX_ATTEMPTS = 2
 
 # ----- otp attempts -----
 OTP_MAX_ATTEMPTS = 3
-
-# ----- css selectors for next page button -----
-NEXT_PAGE_SELECTORS = [
-    "li.a-last a",
-    "ul.a-pagination li.a-last a",
-    "a.s-pagination-next",
-    "[data-hook='show-more-button']",
-]
-
-# ----- search scraper constants -----
-SEARCH_NEXT_PAGE_SELECTORS = [
-    "a.s-pagination-next",
-    "span.s-pagination-strip a.s-pagination-next",
-    "ul.a-pagination li.a-last a",
-    "li.a-last a",
-    "a[aria-label='Go to next page']",
-]
 
 # ----- months map -----
 MONTH_MAP: Dict[str, int] = {
