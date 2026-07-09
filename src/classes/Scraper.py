@@ -20,22 +20,31 @@ from src.config.constants import (
     CAPTCHA_WAIT,
     HEADERS,
     MONTH_MAP,
-    NEXT_PAGE_SELECTORS,
     OTP_MAX_ATTEMPTS,
     OTP_WAIT_TIMEOUT,
     OUTPUT_DIR,
     PAGE_DELAY,
+    REGEX_ASIN,
+    REGEX_DELIVERY_DATE,
+    REGEX_IMAGE_EXT,
+    REGEX_IMAGE_SIZE,
+    REGEX_NON_DIGIT,
+    REGEX_PRICE_CLEAN,
+    REGEX_RATING,
+    REGEX_TITLE_STRIP,
+    REGEX_VARIANT_ROW,
+    REGEX_WHITESPACE,
     REVIEWS_OUTPUT_DIR,
     SCROLL_DELAY,
-    SEARCH_NEXT_PAGE_SELECTORS,
     SEARCH_OUTPUT_DIR,
-    SESSION_DIR,
     SIGNIN_MAX_ATTEMPTS,
 )
 from src.config.selectors import (
+    NEXT_PAGE_SELECTORS,
     OTP_INPUT_FALLBACKS,
     OTP_SEND_BUTTON_FALLBACKS,
     OTP_SUBMIT_FALLBACKS,
+    SEARCH_NEXT_PAGE_SELECTORS,
     SELECTORS,
 )
 from src.utils.logger import get_logger
@@ -49,25 +58,6 @@ from .Settings import settings
 
 # ----- initialize logging configuration -----
 logger = get_logger("SCRAPER")
-
-# ----- pre-compiled regex patterns for performance -----
-_REGEX_ASIN = re.compile(
-    r"/(?:dp|gp/product|product-reviews)/([A-Z0-9]{10})", re.IGNORECASE
-)
-_REGEX_IMAGE_EXT = re.compile(r"\.[A-Za-z0-9]+$")
-_REGEX_IMAGE_SIZE = re.compile(
-    r"\._[A-Z0-9_,.-]+_\.(?:jpg|jpeg|png|gif)$", re.IGNORECASE
-)
-_REGEX_RATING = re.compile(r"([\d.]+)")
-_REGEX_NON_DIGIT = re.compile(r"[^\d]")
-_REGEX_TITLE_STRIP = re.compile(r"^[\d.]+\s*out\s*of\s*5\s*stars\s*", re.IGNORECASE)
-_REGEX_VARIANT_ROW = re.compile(r"^inline-twister-row-")
-_REGEX_WHITESPACE = re.compile(r"\s+")
-_REGEX_DELIVERY_DATE = re.compile(
-    r"\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[,.]?\s*(\d{4})?\b",
-    re.IGNORECASE,
-)
-_REGEX_PRICE_CLEAN = re.compile(r"[^\d.]")
 
 
 class Scraper:
@@ -91,7 +81,9 @@ class Scraper:
         try:
             parsed_url = urlparse(url)
             if parsed_url.scheme not in ("http", "https"):
-                logger.warning("Invalid URL scheme '%s' for URL: %s", parsed_url.scheme, url)
+                logger.warning(
+                    "Invalid URL scheme '%s' for URL: %s", parsed_url.scheme, url
+                )
                 return False
 
             domain: str = parsed_url.netloc.lower()
@@ -100,7 +92,10 @@ class Scraper:
 
             valid = domain == "amazon.in" or domain.endswith(".amazon.in")
             if not valid:
-                logger.warning("Domain verification failed: '%s' is not an allowed Amazon India domain", domain)
+                logger.warning(
+                    "Domain verification failed: '%s' is not an allowed Amazon India domain",
+                    domain,
+                )
             else:
                 logger.info("Amazon URL validation completed successfully")
             return valid
@@ -156,7 +151,7 @@ class Scraper:
     # ----- product asin -----
     @staticmethod
     def extract_asin(url: str) -> str:
-        match = _REGEX_ASIN.search(url)
+        match = REGEX_ASIN.search(url)
         if match:
             asin = match.group(1).upper()
             return asin
@@ -195,12 +190,12 @@ class Scraper:
             logger.warning("Product price element not found in DOM")
             return None
 
-        whole = _REGEX_NON_DIGIT.sub("", whole_tag.get_text(strip=True))
+        whole = REGEX_NON_DIGIT.sub("", whole_tag.get_text(strip=True))
         if not whole:
             return None
 
         fraction_text = fraction_tag.get_text(strip=True) if fraction_tag else "00"
-        fraction = _REGEX_NON_DIGIT.sub("", fraction_text)
+        fraction = REGEX_NON_DIGIT.sub("", fraction_text)
         fraction = fraction.ljust(2, "0")[:2] if fraction else "00"
 
         try:
@@ -252,11 +247,11 @@ class Scraper:
                 if "play-button" in url.lower() or "_pk" in url.lower():
                     continue
 
-                match = _REGEX_IMAGE_SIZE.search(url)
+                match = REGEX_IMAGE_SIZE.search(url)
                 if match:
-                    ext_match = _REGEX_IMAGE_EXT.search(match.group(0))
+                    ext_match = REGEX_IMAGE_EXT.search(match.group(0))
                     ext = ext_match.group(0) if ext_match else ".jpg"
-                    high_res_src = _REGEX_IMAGE_SIZE.sub(ext, url)
+                    high_res_src = REGEX_IMAGE_SIZE.sub(ext, url)
                 else:
                     high_res_src = url
 
@@ -275,7 +270,7 @@ class Scraper:
         for selector in [SELECTORS["ratings_popover"], SELECTORS["ratings_alt"]]:
             ratings_tag = soup.find(*selector)
             if ratings_tag and ratings_tag.get_text().strip():
-                match = _REGEX_RATING.search(ratings_tag.get_text().strip())
+                match = REGEX_RATING.search(ratings_tag.get_text().strip())
                 if match:
                     return float(match.group(1))
         logger.warning("Product rating not found")
@@ -286,7 +281,7 @@ class Scraper:
         element = soup.find(*SELECTORS["reviews_text"])
         if element:
             raw = element.get_text(strip=True).strip("()")
-            cleaned = _REGEX_NON_DIGIT.sub("", raw)
+            cleaned = REGEX_NON_DIGIT.sub("", raw)
             try:
                 return int(cleaned)
             except ValueError:
@@ -299,7 +294,7 @@ class Scraper:
         bullets = soup.find(*SELECTORS["feature_bullets"])
         if bullets:
             items = [
-                _REGEX_WHITESPACE.sub(" ", li.get_text().strip())
+                REGEX_WHITESPACE.sub(" ", li.get_text().strip())
                 for li in bullets.find_all("span", {"class": "a-list-item"})
             ]
             items = [i for i in items if i and i.lower() != "about this item"]
@@ -338,7 +333,7 @@ class Scraper:
         if not container:
             return variants
 
-        rows = container.find_all("div", id=lambda x: x and _REGEX_VARIANT_ROW.match(x))
+        rows = container.find_all("div", id=lambda x: x and REGEX_VARIANT_ROW.match(x))
         for row in rows:
             dim_key = row.get("id", "").replace("inline-twister-row-", "")
             variant_label = dim_key.replace("_name", "").replace("_", " ").title()
@@ -387,7 +382,7 @@ class Scraper:
     def review_title(raw_title: str, rating_text_to_strip: str = "") -> str:
         if rating_text_to_strip and rating_text_to_strip in raw_title:
             return raw_title.replace(rating_text_to_strip, "").strip()
-        return _REGEX_TITLE_STRIP.sub("", raw_title).strip()
+        return REGEX_TITLE_STRIP.sub("", raw_title).strip()
 
     # ----- product page reviews handling -----
     def reviews_details(self, soup: BeautifulSoup) -> List[Review]:
@@ -410,7 +405,7 @@ class Scraper:
                 rating_str = ""
                 if rating_el:
                     rating_str = rating_el.get_text(strip=True)
-                    match = _REGEX_RATING.search(rating_str)
+                    match = REGEX_RATING.search(rating_str)
                     if match:
                         rating = float(match.group(1))
 
@@ -485,9 +480,16 @@ class Scraper:
             )
 
         with open(json_path, mode="w", encoding="utf-8") as f:
-            json.dump({"asin": asin, "total_reviews": 0, "reviews": []}, f, indent=4, ensure_ascii=False)
+            json.dump(
+                {"asin": asin, "total_reviews": 0, "reviews": []},
+                f,
+                indent=4,
+                ensure_ascii=False,
+            )
 
-        logger.info("Initialized storage files | CSV: %s | JSON: %s", csv_path, json_path)
+        logger.info(
+            "Initialized storage files | CSV: %s | JSON: %s", csv_path, json_path
+        )
         return csv_path, json_path
 
     # ----- save data into csv and json file -----
@@ -504,16 +506,48 @@ class Scraper:
         with open(csv_path, mode="a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             for r in reviews:
-                r_num = r.get("review_number") if isinstance(r, dict) else getattr(r, "review_number", "")
-                r_name = r.get("reviewer_name") if isinstance(r, dict) else getattr(r, "reviewer_name", "")
-                r_loc = r.get("review_location") if isinstance(r, dict) else getattr(r, "review_location", "")
-                r_date = r.get("review_date") if isinstance(r, dict) else getattr(r, "review_date", "")
-                r_title = r.get("review_title") if isinstance(r, dict) else getattr(r, "review_title", "")
-                r_rat = r.get("rating") if isinstance(r, dict) else getattr(r, "rating", "")
-                r_body = r.get("review_body") if isinstance(r, dict) else getattr(r, "review_body", "")
-                r_help = r.get("review_helpful") if isinstance(r, dict) else getattr(r, "review_helpful", "")
+                r_num = (
+                    r.get("review_number")
+                    if isinstance(r, dict)
+                    else getattr(r, "review_number", "")
+                )
+                r_name = (
+                    r.get("reviewer_name")
+                    if isinstance(r, dict)
+                    else getattr(r, "reviewer_name", "")
+                )
+                r_loc = (
+                    r.get("review_location")
+                    if isinstance(r, dict)
+                    else getattr(r, "review_location", "")
+                )
+                r_date = (
+                    r.get("review_date")
+                    if isinstance(r, dict)
+                    else getattr(r, "review_date", "")
+                )
+                r_title = (
+                    r.get("review_title")
+                    if isinstance(r, dict)
+                    else getattr(r, "review_title", "")
+                )
+                r_rat = (
+                    r.get("rating") if isinstance(r, dict) else getattr(r, "rating", "")
+                )
+                r_body = (
+                    r.get("review_body")
+                    if isinstance(r, dict)
+                    else getattr(r, "review_body", "")
+                )
+                r_help = (
+                    r.get("review_helpful")
+                    if isinstance(r, dict)
+                    else getattr(r, "review_helpful", "")
+                )
 
-                writer.writerow([r_num, r_name, r_loc, r_date, r_title, r_rat, r_body, r_help])
+                writer.writerow(
+                    [r_num, r_name, r_loc, r_date, r_title, r_rat, r_body, r_help]
+                )
 
         try:
             if os.path.exists(json_path) and os.path.getsize(json_path) > 0:
@@ -524,23 +558,28 @@ class Scraper:
             else:
                 data = {"asin": asin_val, "total_reviews": 0, "reviews": []}
         except (json.JSONDecodeError, FileNotFoundError):
-            logger.warning("JSON tracking file corrupt or missing; resetting file structure: %s", json_path)
+            logger.warning(
+                "JSON tracking file corrupt or missing; resetting file structure: %s",
+                json_path,
+            )
             data = {"asin": asin_val, "total_reviews": 0, "reviews": []}
 
         for r in reviews:
             if isinstance(r, dict):
                 data["reviews"].append(r)
             else:
-                data["reviews"].append({
-                    "review_number": getattr(r, "review_number", ""),
-                    "reviewer_name": getattr(r, "reviewer_name", ""),
-                    "review_date": getattr(r, "review_date", ""),
-                    "review_location": getattr(r, "review_location", ""),
-                    "rating": getattr(r, "rating", None),
-                    "review_title": getattr(r, "review_title", ""),
-                    "review_body": getattr(r, "review_body", ""),
-                    "review_helpful": getattr(r, "review_helpful", "")
-                })
+                data["reviews"].append(
+                    {
+                        "review_number": getattr(r, "review_number", ""),
+                        "reviewer_name": getattr(r, "reviewer_name", ""),
+                        "review_date": getattr(r, "review_date", ""),
+                        "review_location": getattr(r, "review_location", ""),
+                        "rating": getattr(r, "rating", None),
+                        "review_title": getattr(r, "review_title", ""),
+                        "review_body": getattr(r, "review_body", ""),
+                        "review_helpful": getattr(r, "review_helpful", ""),
+                    }
+                )
 
         data["total_reviews"] = len(data["reviews"])
 
@@ -599,9 +638,15 @@ class Scraper:
         for node in nodes:
             name_el = node.find(*SELECTORS["reviewer"])
             date_el = node.find(*SELECTORS["review_date"])
-            title_el = node.find(*SELECTORS["review_title"]) or node.select_one(".review-title")
-            rating_el = node.find(*SELECTORS["review_rating"]) or node.select_one(".review-rating")
-            body_el = node.find(*SELECTORS["review_body"]) or node.select_one(".review-text")
+            title_el = node.find(*SELECTORS["review_title"]) or node.select_one(
+                ".review-title"
+            )
+            rating_el = node.find(*SELECTORS["review_rating"]) or node.select_one(
+                ".review-rating"
+            )
+            body_el = node.find(*SELECTORS["review_body"]) or node.select_one(
+                ".review-text"
+            )
             helpful_el = node.find(*SELECTORS["review_helpful"])
 
             reviewer_name = name_el.get_text(strip=True) if name_el else "Anonymous"
@@ -612,7 +657,7 @@ class Scraper:
 
             rating = None
             if rating_el:
-                match = _REGEX_RATING.search(rating_el.get_text(strip=True))
+                match = REGEX_RATING.search(rating_el.get_text(strip=True))
                 if match:
                     rating = float(match.group(1))
 
@@ -622,7 +667,9 @@ class Scraper:
             review_location, review_date = Scraper.review_date_location(raw_meta)
 
             rating_key = f"{rating:.1f}" if rating is not None else "none"
-            sig = hash(f"{reviewer_name}_{review_date}_{review_title_text}_{rating_key}")
+            sig = hash(
+                f"{reviewer_name}_{review_date}_{review_title_text}_{rating_key}"
+            )
             if sig in seen:
                 continue
 
@@ -656,7 +703,9 @@ class Scraper:
             return
 
         try:
-            await page.goto("https://www.amazon.in", wait_until="domcontentloaded", timeout=30000)
+            await page.goto(
+                "https://www.amazon.in", wait_until="domcontentloaded", timeout=30000
+            )
             await asyncio.sleep(1.5)
         except Exception as exc:
             logger.debug("Homepage hop failed before redirect (continuing): %s", exc)
@@ -669,7 +718,9 @@ class Scraper:
         password = settings.AMAZON_PASSWORD
 
         if not email or not password:
-            logger.warning("Amazon credentials missing in settings; skipping automated sign-in.")
+            logger.warning(
+                "Amazon credentials missing in settings; skipping automated sign-in."
+            )
             return
 
         email_sel = Scraper._get_css_selector("email")
@@ -682,7 +733,9 @@ class Scraper:
 
             try:
                 if await page.locator(password_sel).count() > 0:
-                    logger.info("Isolated password prompt detected; skipping email input.")
+                    logger.info(
+                        "Isolated password prompt detected; skipping email input."
+                    )
                     password_locator = page.locator(password_sel)
                     await password_locator.wait_for(state="visible", timeout=10000)
                     await password_locator.fill("")
@@ -702,7 +755,9 @@ class Scraper:
 
             email_selector_to_use = None
             try:
-                await page.wait_for_selector(f"{email_sel}, #ap_email", state="visible", timeout=10000)
+                await page.wait_for_selector(
+                    f"{email_sel}, #ap_email", state="visible", timeout=10000
+                )
                 if await page.locator(email_sel).count() > 0:
                     email_selector_to_use = email_sel
                 elif await page.locator("#ap_email").count() > 0:
@@ -731,7 +786,7 @@ class Scraper:
                 "input.a-button-input[aria-labelledby*='intention']",
                 "text=Create account",
                 "text=Proceed to create an account",
-                "text=We cannot find an account with that email address"
+                "text=We cannot find an account with that email address",
             ]
 
             is_new_user = False
@@ -743,7 +798,10 @@ class Scraper:
                     break
 
                 for selector in new_user_selectors:
-                    if await page.locator(selector).count() > 0 and await page.locator(selector).first.is_visible():
+                    if (
+                        await page.locator(selector).count() > 0
+                        and await page.locator(selector).first.is_visible()
+                    ):
                         is_new_user = True
                         break
                 if is_new_user:
@@ -752,10 +810,14 @@ class Scraper:
 
             # ----- handle if email id is new on amazon -----
             if is_new_user:
-                raise RuntimeError("Login Error - New user detected. Please use a registered email id and password.")
+                raise RuntimeError(
+                    "Login Error - New user detected. Please use a registered email id and password."
+                )
 
             if not password_visible:
-                raise TimeoutError("Timed out waiting for password input or new-user screen sequence.")
+                raise TimeoutError(
+                    "Timed out waiting for password input or new-user screen sequence."
+                )
 
             # ----- log and fill password -----
             password_locator = page.locator(password_sel)
@@ -769,8 +831,13 @@ class Scraper:
             await page.locator(login_sel).click()
             await page.wait_for_load_state("domcontentloaded", timeout=30000)
 
-            if any(key in page.url.lower() for key in ("mfa", "auth-mfa", "verification", "ap/cvf")):
-                logger.warning("MFA / OTP challenge encountered. Prompting user code via dashboard popup.")
+            if any(
+                key in page.url.lower()
+                for key in ("mfa", "auth-mfa", "verification", "ap/cvf")
+            ):
+                logger.warning(
+                    "MFA / OTP challenge encountered. Prompting user code via dashboard popup."
+                )
                 await Scraper._handle_otp_challenge(page)
 
             logger.info("Amazon authentication sequence completed.")
@@ -808,7 +875,10 @@ class Scraper:
                 for css in css_fallbacks:
                     try:
                         frame_locator = frame.locator(css).first
-                        if await frame_locator.count() > 0 and await frame_locator.is_visible():
+                        if (
+                            await frame_locator.count() > 0
+                            and await frame_locator.is_visible()
+                        ):
                             return frame_locator
                     except Exception:
                         continue
@@ -824,7 +894,9 @@ class Scraper:
         if channel_options:
             resolved = await Scraper._handle_otp_channel_choice(page, channel_options)
             if not resolved:
-                logger.error("Failed to resolve OTP delivery-method choices; aborting verification flow.")
+                logger.error(
+                    "Failed to resolve OTP delivery-method choices; aborting verification flow."
+                )
                 return
 
         await Scraper._request_and_submit_otp_code(page)
@@ -842,7 +914,9 @@ class Scraper:
             return []
 
         try:
-            otp_input_present = await Scraper._first_visible_locator_any_frame(page, OTP_INPUT_FALLBACKS)
+            otp_input_present = await Scraper._first_visible_locator_any_frame(
+                page, OTP_INPUT_FALLBACKS
+            )
             if otp_input_present is not None:
                 return []
         except Exception:
@@ -896,15 +970,26 @@ class Scraper:
     @staticmethod
     async def _handle_otp_channel_choice(page, options: list) -> bool:
         labels = [o["label"] for o in options]
-        logger.warning("Amazon delivery option required (options: %s). Requesting choice from dashboard.", labels)
+        logger.warning(
+            "Amazon delivery option required (options: %s). Requesting choice from dashboard.",
+            labels,
+        )
 
         choice_future = await OtpManager.request_choice(labels)
-        logger.info("Waiting up to %ds for user OTP channel choice submission via dashboard.", OTP_WAIT_TIMEOUT)
+        logger.info(
+            "Waiting up to %ds for user OTP channel choice submission via dashboard.",
+            OTP_WAIT_TIMEOUT,
+        )
 
         try:
-            chosen_label = await asyncio.wait_for(choice_future, timeout=OTP_WAIT_TIMEOUT)
+            chosen_label = await asyncio.wait_for(
+                choice_future, timeout=OTP_WAIT_TIMEOUT
+            )
         except asyncio.TimeoutError:
-            logger.error("Timed out waiting for user OTP channel choice selection after %ds.", OTP_WAIT_TIMEOUT)
+            logger.error(
+                "Timed out waiting for user OTP channel choice selection after %ds.",
+                OTP_WAIT_TIMEOUT,
+            )
             OtpManager.cancel_choice()
             return False
         except asyncio.CancelledError:
@@ -913,21 +998,28 @@ class Scraper:
 
         match = next((o for o in options if o["label"] == chosen_label), None)
         if match is None:
-            logger.warning("Selected choice '%s' mismatch; fallback to first available option.", chosen_label)
+            logger.warning(
+                "Selected choice '%s' mismatch; fallback to first available option.",
+                chosen_label,
+            )
             match = options[0]
 
         try:
             radios = page.locator("input[type='radio']:visible")
             await radios.nth(match["index"]).check(force=True)
         except Exception as exc:
-            logger.error("Failed to select OTP delivery option '%s': %s", match["label"], exc)
+            logger.error(
+                "Failed to select OTP delivery option '%s': %s", match["label"], exc
+            )
             return False
 
         await asyncio.sleep(0.3)
 
         send_btn = await Scraper._first_visible_locator(page, OTP_SEND_BUTTON_FALLBACKS)
         if send_btn is None:
-            text_btn = page.get_by_role("button", name="Send OTP").or_(page.get_by_text("Send OTP"))
+            text_btn = page.get_by_role("button", name="Send OTP").or_(
+                page.get_by_text("Send OTP")
+            )
             if await text_btn.count() == 0:
                 logger.error("Could not locate 'Send OTP' button element on screen.")
                 return False
@@ -939,33 +1031,52 @@ class Scraper:
         except Exception as exc:
             logger.debug("Navigation wait exception after sending OTP: %s", exc)
 
-        logger.info("OTP delivery method '%s' selected and request dispatched.", match["label"])
+        logger.info(
+            "OTP delivery method '%s' selected and request dispatched.", match["label"]
+        )
         return True
 
     # ----- request and submit otp for OTP_MAX_ATTEMPTS -----
     @staticmethod
-    async def _request_and_submit_otp_code(page, max_attempts: int = OTP_MAX_ATTEMPTS) -> None:
+    async def _request_and_submit_otp_code(
+        page, max_attempts: int = OTP_MAX_ATTEMPTS
+    ) -> None:
         error_message = None
 
         for attempt in range(1, max_attempts + 1):
             otp_future = await OtpManager.request_otp(error=error_message)
-            logger.info("Waiting up to %ds for dashboard user OTP entry (attempt %d/%d).", OTP_WAIT_TIMEOUT, attempt, max_attempts)
+            logger.info(
+                "Waiting up to %ds for dashboard user OTP entry (attempt %d/%d).",
+                OTP_WAIT_TIMEOUT,
+                attempt,
+                max_attempts,
+            )
 
             try:
                 otp_code = await asyncio.wait_for(otp_future, timeout=OTP_WAIT_TIMEOUT)
             except asyncio.TimeoutError:
-                logger.error("Timed out waiting for dashboard user OTP code entry after %ds.", OTP_WAIT_TIMEOUT)
+                logger.error(
+                    "Timed out waiting for dashboard user OTP code entry after %ds.",
+                    OTP_WAIT_TIMEOUT,
+                )
                 OtpManager.cancel()
                 return
             except asyncio.CancelledError:
                 logger.warning("OTP wait process canceled by system.")
                 raise
 
-            logger.info("OTP received from dashboard (attempt %d/%d). Parsing page fields...", attempt, max_attempts)
+            logger.info(
+                "OTP received from dashboard (attempt %d/%d). Parsing page fields...",
+                attempt,
+                max_attempts,
+            )
 
             otp_input = await Scraper._locate_otp_input(page)
             if otp_input is None:
-                logger.error("OTP code provided but verification text fields not found on page: %s", page.url)
+                logger.error(
+                    "OTP code provided but verification text fields not found on page: %s",
+                    page.url,
+                )
                 await Scraper._save_otp_debug_snapshot(page)
                 OtpManager.cancel()
                 return
@@ -975,7 +1086,9 @@ class Scraper:
             await otp_input.fill(otp_code)
             await asyncio.sleep(0.5)
 
-            otp_submit = await Scraper._first_visible_locator_any_frame(page, OTP_SUBMIT_FALLBACKS)
+            otp_submit = await Scraper._first_visible_locator_any_frame(
+                page, OTP_SUBMIT_FALLBACKS
+            )
             if otp_submit is not None:
                 await otp_submit.click()
             else:
@@ -984,36 +1097,51 @@ class Scraper:
             try:
                 await page.wait_for_load_state("domcontentloaded", timeout=30000)
             except Exception:
-                logger.debug("Navigation timeout following OTP submission (continuing).")
+                logger.debug(
+                    "Navigation timeout following OTP submission (continuing)."
+                )
 
             if not await Scraper.is_login_page(page):
                 logger.info("OTP verified successfully. Browser session authenticated.")
                 OtpManager.cancel()
                 return
 
-            logger.warning("OTP submission attempt %d/%d failed to clear verification screen. Retrying...", attempt, max_attempts)
+            logger.warning(
+                "OTP submission attempt %d/%d failed to clear verification screen. Retrying...",
+                attempt,
+                max_attempts,
+            )
 
             if attempt < max_attempts:
                 error_message = "That code didn't work. Please check it and try again."
                 await asyncio.sleep(1)
                 continue
 
-        logger.error("All %d OTP submission attempts exhausted; authentication challenge failed.", max_attempts)
+        logger.error(
+            "All %d OTP submission attempts exhausted; authentication challenge failed.",
+            max_attempts,
+        )
         OtpManager.cancel()
 
     # ----- fill otp input box -----
     @staticmethod
     async def _locate_otp_input(page):
         try:
-            await page.wait_for_selector(", ".join(OTP_INPUT_FALLBACKS), state="visible", timeout=20000)
+            await page.wait_for_selector(
+                ", ".join(OTP_INPUT_FALLBACKS), state="visible", timeout=20000
+            )
         except Exception:
             pass
 
-        otp_input = await Scraper._first_visible_locator_any_frame(page, OTP_INPUT_FALLBACKS)
+        otp_input = await Scraper._first_visible_locator_any_frame(
+            page, OTP_INPUT_FALLBACKS
+        )
         if otp_input is not None:
             return otp_input
 
-        frames_to_scan = [page.main_frame] + [f for f in page.frames if f != page.main_frame]
+        frames_to_scan = [page.main_frame] + [
+            f for f in page.frames if f != page.main_frame
+        ]
         for frame in frames_to_scan:
             try:
                 candidates = frame.locator("input:visible")
@@ -1022,16 +1150,30 @@ class Scraper:
                     candidate = candidates.nth(i)
                     try:
                         input_type = (await candidate.get_attribute("type")) or "text"
-                        if input_type.lower() in ("hidden", "checkbox", "radio", "submit", "button", "image"):
+                        if input_type.lower() in (
+                            "hidden",
+                            "checkbox",
+                            "radio",
+                            "submit",
+                            "button",
+                            "image",
+                        ):
                             continue
 
                         name = (await candidate.get_attribute("name")) or ""
                         cid = (await candidate.get_attribute("id")) or ""
-                        autocomplete = (await candidate.get_attribute("autocomplete")) or ""
-                        placeholder = (await candidate.get_attribute("placeholder")) or ""
+                        autocomplete = (
+                            await candidate.get_attribute("autocomplete")
+                        ) or ""
+                        placeholder = (
+                            await candidate.get_attribute("placeholder")
+                        ) or ""
                         haystack = f"{name} {cid} {autocomplete} {placeholder}".lower()
 
-                        if any(token in haystack for token in ("otp", "code", "pin", "one-time", "otc")):
+                        if any(
+                            token in haystack
+                            for token in ("otp", "code", "pin", "one-time", "otc")
+                        ):
                             return candidate
                     except Exception:
                         continue
@@ -1047,17 +1189,25 @@ class Scraper:
             os.makedirs(OUTPUT_DIR, exist_ok=True)
             debug_path = str(OUTPUT_DIR / "debug_otp_page.png")
             await page.screenshot(path=debug_path, full_page=True)
-            logger.info("Saved screenshot of unrecognized verification page to: %s", debug_path)
+            logger.info(
+                "Saved screenshot of unrecognized verification page to: %s", debug_path
+            )
         except Exception as exc:
             logger.debug("Failed to capture OTP debug screenshot: %s", exc)
 
     @staticmethod
-    async def ensure_logged_in(page, target_url: str, max_attempts: int = SIGNIN_MAX_ATTEMPTS) -> bool:
+    async def ensure_logged_in(
+        page, target_url: str, max_attempts: int = SIGNIN_MAX_ATTEMPTS
+    ) -> bool:
         if not await Scraper.is_login_page(page):
             return True
 
         for attempt in range(1, max_attempts + 1):
-            logger.info("Login page redirect detected. Starting authentication workflow (attempt %d/%d)...", attempt, max_attempts)
+            logger.info(
+                "Login page redirect detected. Starting authentication workflow (attempt %d/%d)...",
+                attempt,
+                max_attempts,
+            )
             await Scraper._handle_signin(page, target_url)
             await asyncio.sleep(2)
 
@@ -1065,22 +1215,38 @@ class Scraper:
                 logger.info("Authentication validated successfully.")
                 return True
 
-            logger.warning("Still on login/verification interface after attempt %d/%d.", attempt, max_attempts)
+            logger.warning(
+                "Still on login/verification interface after attempt %d/%d.",
+                attempt,
+                max_attempts,
+            )
 
             if attempt < max_attempts:
                 try:
-                    await page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
+                    await page.goto(
+                        target_url, wait_until="domcontentloaded", timeout=60000
+                    )
                 except Exception as exc:
-                    logger.debug("Target URL re-navigation failed before fallback retry: %s", exc)
+                    logger.debug(
+                        "Target URL re-navigation failed before fallback retry: %s", exc
+                    )
                 await asyncio.sleep(1)
 
-        logger.error("Authentication failed. Session stuck on auth screens after %d attempts.", max_attempts)
-        raise RuntimeError("Authentication check failed — Session stuck on authentication interface.")
+        logger.error(
+            "Authentication failed. Session stuck on auth screens after %d attempts.",
+            max_attempts,
+        )
+        raise RuntimeError(
+            "Authentication check failed — Session stuck on authentication interface."
+        )
 
     @staticmethod
     async def is_login_page(page) -> bool:
         url = page.url.lower()
-        if any(token in url for token in ("ap/signin", "signin", "ap/login", "authentication")):
+        if any(
+            token in url
+            for token in ("ap/signin", "signin", "ap/login", "authentication")
+        ):
             return True
 
         email_sel = Scraper._get_css_selector("email")
@@ -1105,11 +1271,10 @@ class Scraper:
             logger.error(str(e))
             return []
 
-        reviews_url = f"https://www.amazon.in/product-reviews/{asin}?reviewerType=all_reviews"
+        reviews_url = (
+            f"https://www.amazon.in/product-reviews/{asin}?reviewerType=all_reviews"
+        )
         csv_path, json_path = Scraper.save_reviews(asin)
-
-        reviews_session_dir = os.path.join(SESSION_DIR, f"reviews_{asin}")
-        os.makedirs(reviews_session_dir, exist_ok=True)
 
         seen: set = set()
         total = 0
@@ -1119,15 +1284,19 @@ class Scraper:
             context = await BrowserManager.start()
             try:
                 try:
-                    page = await context.new_page()
+                    page = await BrowserManager.new_page()
                 except PlaywrightError as e:
                     if "TargetClosedError" in str(e) or "closed" in str(e).lower():
-                        logger.warning("Browser context closed before initialization of reviews loop could finish.")
+                        logger.warning(
+                            "Browser context closed before initialization of reviews loop could finish."
+                        )
                         return []
                     raise e
 
                 await Stealth().apply_stealth_async(page)
-                await page.goto(reviews_url, wait_until="domcontentloaded", timeout=60000)
+                await page.goto(
+                    reviews_url, wait_until="domcontentloaded", timeout=60000
+                )
 
                 try:
                     await Scraper.ensure_logged_in(page, reviews_url)
@@ -1138,14 +1307,27 @@ class Scraper:
                     try:
                         await asyncio.sleep(0)
                     except asyncio.CancelledError:
-                        logger.info("ASIN %s: Reviews extraction worker caught cancellation signal. Exiting gracefully.", asin)
+                        logger.info(
+                            "ASIN %s: Reviews extraction worker caught cancellation signal. Exiting gracefully.",
+                            asin,
+                        )
                         raise
 
-                    logger.info("[Reviews ASIN: %s] Scraping page %d...", asin, page_num)
+                    logger.info(
+                        "[Reviews ASIN: %s] Scraping page %d...", asin, page_num
+                    )
 
-                    is_captcha_page = await page.locator("form[action*='captcha'], input[id='captchacharacters']").count() > 0
+                    is_captcha_page = (
+                        await page.locator(
+                            "form[action*='captcha'], input[id='captchacharacters']"
+                        ).count()
+                        > 0
+                    )
                     if is_captcha_page:
-                        logger.warning("Captcha challenge page detected. Pausing process for %ds.", CAPTCHA_WAIT)
+                        logger.warning(
+                            "Captcha challenge page detected. Pausing process for %ds.",
+                            CAPTCHA_WAIT,
+                        )
                         await asyncio.sleep(CAPTCHA_WAIT)
 
                     await Scraper.scroll_page(page)
@@ -1153,10 +1335,15 @@ class Scraper:
                     page_source = await page.content()
                     soup = BeautifulSoup(page_source, "html.parser")
 
-                    nodes = soup.select('[data-hook="review"]') or soup.select(".review")
+                    nodes = soup.select('[data-hook="review"]') or soup.select(
+                        ".review"
+                    )
 
                     if not nodes:
-                        logger.info("No tracking review cards match layout structures on page %d. Processing complete.", page_num)
+                        logger.info(
+                            "No tracking review cards match layout structures on page %d. Processing complete.",
+                            page_num,
+                        )
                         break
 
                     reviews, total = Scraper.parse_page_reviews(nodes, seen, total)
@@ -1170,10 +1357,20 @@ class Scraper:
 
                     Scraper.write_reviews_to_storage(csv_path, json_path, reviews)
 
-                    logger.info("[Reviews ASIN: %s] Page %d complete | Added +%d reviews | Total collected: %d", asin, page_num, len(reviews), total)
+                    logger.info(
+                        "[Reviews ASIN: %s] Page %d complete | Added +%d reviews | Total collected: %d",
+                        asin,
+                        page_num,
+                        len(reviews),
+                        total,
+                    )
 
                     if total >= settings.THRESHOLD_LIMIT:
-                        logger.info("Extraction threshold reached. Completed %d items from %d pages.", settings.THRESHOLD_LIMIT, page_num)
+                        logger.info(
+                            "Extraction threshold reached. Completed %d items from %d pages.",
+                            settings.THRESHOLD_LIMIT,
+                            page_num,
+                        )
                         break
 
                     next_selector = await Scraper.find_next_page_selector(page)
@@ -1187,14 +1384,22 @@ class Scraper:
 
                     try:
                         await next_button.click()
-                        await page.wait_for_load_state("domcontentloaded", timeout=15000)
+                        await page.wait_for_load_state(
+                            "domcontentloaded", timeout=15000
+                        )
                     except Exception:
-                        logger.warning("Pagination event element selection triggered unusual state change. Proceeding...")
+                        logger.warning(
+                            "Pagination event element selection triggered unusual state change. Proceeding..."
+                        )
 
                     try:
-                        await page.wait_for_selector("[data-hook='review']", state="attached", timeout=8000)
+                        await page.wait_for_selector(
+                            "[data-hook='review']", state="attached", timeout=8000
+                        )
                     except Exception:
-                        logger.warning("Expected review cards not found in immediate viewport post-navigation.")
+                        logger.warning(
+                            "Expected review cards not found in immediate viewport post-navigation."
+                        )
 
                     await asyncio.sleep(PAGE_DELAY)
                     page_num += 1
@@ -1207,15 +1412,21 @@ class Scraper:
         try:
             with open(json_path, "r", encoding="utf-8") as f:
                 final_reviews = json.load(f)
-            return final_reviews.get("reviews", []) if isinstance(final_reviews, dict) else final_reviews
+            return (
+                final_reviews.get("reviews", [])
+                if isinstance(final_reviews, dict)
+                else final_reviews
+            )
         except Exception as err:
-            logger.error("Failed to read consolidated storage data file from disk: %s", err)
+            logger.error(
+                "Failed to read consolidated storage data file from disk: %s", err
+            )
             return []
 
     # ----- search results parsing utilities -----
     @staticmethod
     def _parse_delivery_days(text: str) -> Optional[int]:
-        match = _REGEX_DELIVERY_DATE.search(text)
+        match = REGEX_DELIVERY_DATE.search(text)
         if not match:
             return None
 
@@ -1246,7 +1457,9 @@ class Scraper:
         search_root = container if container else card
         for span in search_root.find_all("span"):
             text = span.get_text(separator=" ", strip=True)
-            if any(kw in text.lower() for kw in ("delivery", "arrive", "get it", "ships")):
+            if any(
+                kw in text.lower() for kw in ("delivery", "arrive", "get it", "ships")
+            ):
                 days = Scraper._parse_delivery_days(text)
                 if days is not None:
                     return days
@@ -1268,7 +1481,7 @@ class Scraper:
         ):
             tag = card.select_one(sel)
             if tag:
-                cleaned = _REGEX_PRICE_CLEAN.sub("", tag.get_text(strip=True))
+                cleaned = REGEX_PRICE_CLEAN.sub("", tag.get_text(strip=True))
                 cleaned = cleaned.rstrip(".")
                 try:
                     return float(cleaned) if cleaned else "Unavailable"
@@ -1277,9 +1490,13 @@ class Scraper:
 
         whole_el = card.select_one("span.a-price-whole")
         if whole_el:
-            whole = _REGEX_NON_DIGIT.sub("", whole_el.get_text(strip=True))
+            whole = REGEX_NON_DIGIT.sub("", whole_el.get_text(strip=True))
             frac_el = card.select_one("span.a-price-fraction")
-            frac = _REGEX_NON_DIGIT.sub("", frac_el.get_text(strip=True)) if frac_el else "00"
+            frac = (
+                REGEX_NON_DIGIT.sub("", frac_el.get_text(strip=True))
+                if frac_el
+                else "00"
+            )
             frac = frac.ljust(2, "0")[:2]
             try:
                 return float(f"{whole}.{frac}") if whole else "Unavailable"
@@ -1296,7 +1513,9 @@ class Scraper:
             return None
 
         title: str = "N/A"
-        h2_anchor = card.select_one("h2 a") or card.select_one("a.a-link-normal.s-line-clamp-2")
+        h2_anchor = card.select_one("h2 a") or card.select_one(
+            "a.a-link-normal.s-line-clamp-2"
+        )
         if h2_anchor:
             title = h2_anchor.get("aria-label", "").strip()
             if not title:
@@ -1354,7 +1573,12 @@ class Scraper:
                 )
             os.replace(temp_path, output_path)
         except Exception as exc:
-            logger.error("Failed to save search history temp storage file on page %d: %s", page_num, exc, exc_info=True)
+            logger.error(
+                "Failed to save search history temp storage file on page %d: %s",
+                page_num,
+                exc,
+                exc_info=True,
+            )
 
     # ----- playwright execution context for dedicated search query loop -----
     @staticmethod
@@ -1366,55 +1590,95 @@ class Scraper:
         seen_asins: set = set()
         page_num = 1
 
-        safe_slug = re.sub(r"[^\w\-_]", "_", query.strip().lower())
-        search_session_dir = os.path.join(SESSION_DIR, f"search_{safe_slug}")
-        os.makedirs(search_session_dir, exist_ok=True)
-
         async with async_playwright():
             context = await BrowserManager.start()
             try:
                 try:
-                    page = await context.new_page()
+                    page = await BrowserManager.new_page()
                 except PlaywrightError as e:
                     if "TargetClosedError" in str(e) or "closed" in str(e).lower():
-                        logger.warning("Browser context closed before search operations could initialize.")
-                        return {"status": "cancelled", "message": "Browser session closed."}
+                        logger.warning(
+                            "Browser context closed before search operations could initialize."
+                        )
+                        return {
+                            "status": "cancelled",
+                            "message": "Browser session closed.",
+                        }
                     raise e
                 await Stealth().apply_stealth_async(page)
 
                 logger.debug("Navigating browser to: %s", search_url)
-                await page.goto(search_url, wait_until="domcontentloaded", timeout=60000)
+                await page.goto(
+                    search_url, wait_until="domcontentloaded", timeout=60000
+                )
 
                 while True:
                     try:
                         await asyncio.sleep(0)
                     except asyncio.CancelledError:
-                        logger.info("[Search Query: '%s'] Core search processing worker received interruption flag.", query)
+                        logger.info(
+                            "[Search Query: '%s'] Core search processing worker received interruption flag.",
+                            query,
+                        )
                         raise
 
                     await Scraper.ensure_logged_in(page, search_url)
-                    logger.info("[Search Query: '%s'] Scraping catalog page %d...", query, page_num)
+                    logger.info(
+                        "[Search Query: '%s'] Scraping catalog page %d...",
+                        query,
+                        page_num,
+                    )
 
-                    is_captcha_page = await page.locator("form[action*='captcha'], input[id='captchacharacters']").count() > 0
+                    is_captcha_page = (
+                        await page.locator(
+                            "form[action*='captcha'], input[id='captchacharacters']"
+                        ).count()
+                        > 0
+                    )
                     if is_captcha_page:
-                        logger.warning("Captcha block parsed. Stopping execution runner for %ds.", CAPTCHA_WAIT)
+                        logger.warning(
+                            "Captcha block parsed. Stopping execution runner for %ds.",
+                            CAPTCHA_WAIT,
+                        )
                         await asyncio.sleep(CAPTCHA_WAIT)
 
                     if await Scraper.is_login_page(page):
-                        logger.warning("Unexpected navigation redirect triggered away from catalog path structure.")
+                        logger.warning(
+                            "Unexpected navigation redirect triggered away from catalog path structure."
+                        )
                         if not await Scraper.ensure_logged_in(page, search_url):
                             break
 
                     await Scraper.scroll_page(page)
 
                     soup = BeautifulSoup(await page.content(), "html.parser")
-                    cards = soup.select("div[data-component-type='s-search-result'][data-asin]")
+                    cards = soup.select(
+                        "div[data-component-type='s-search-result'][data-asin]"
+                    )
                     if not cards:
                         cards = soup.select("div.s-result-item[data-asin]")
 
                     clean_query = re.sub(r"[^\w\s]", " ", query.lower().strip())
-                    STOP_WORDS = {"and", "for", "with", "the", "under", "from", "in", "of", "to", "by", "a", "an", "online"}
-                    query_tokens = [token for token in clean_query.split() if token and token not in STOP_WORDS]
+                    STOP_WORDS = {
+                        "and",
+                        "for",
+                        "with",
+                        "the",
+                        "under",
+                        "from",
+                        "in",
+                        "of",
+                        "to",
+                        "by",
+                        "a",
+                        "an",
+                        "online",
+                    }
+                    query_tokens = [
+                        token
+                        for token in clean_query.split()
+                        if token and token not in STOP_WORDS
+                    ]
 
                     page_extracted_count = 0
                     for card in cards:
@@ -1430,38 +1694,72 @@ class Scraper:
                             if product:
                                 title_lower = product["title"].lower()
 
-                                if "case" not in clean_query and "cover" not in clean_query:
-                                    if any(stop_pattern in title_lower for stop_pattern in [" case ", " cover ", " pouch "]):
+                                if (
+                                    "case" not in clean_query
+                                    and "cover" not in clean_query
+                                ):
+                                    if any(
+                                        stop_pattern in title_lower
+                                        for stop_pattern in [
+                                            " case ",
+                                            " cover ",
+                                            " pouch ",
+                                        ]
+                                    ):
                                         continue
 
                                 if len(query_tokens) >= 2:
                                     primary_identifier = query_tokens[0]
-                                    primary_matched = (primary_identifier in title_lower) or (primary_identifier in title_lower.replace("-", ""))
-                                    other_tokens_match = any(token in title_lower for token in query_tokens[1:])
+                                    primary_matched = (
+                                        primary_identifier in title_lower
+                                    ) or (
+                                        primary_identifier
+                                        in title_lower.replace("-", "")
+                                    )
+                                    other_tokens_match = any(
+                                        token in title_lower
+                                        for token in query_tokens[1:]
+                                    )
 
                                     if not (primary_matched and other_tokens_match):
                                         continue
 
                                 elif len(query_tokens) == 1:
-                                    if not any(token in title_lower for token in query_tokens):
+                                    if not any(
+                                        token in title_lower for token in query_tokens
+                                    ):
                                         continue
 
                                 seen_asins.add(asin)
                                 all_products.append(product)
                                 page_extracted_count += 1
                         except Exception as exc:
-                            logger.warning("Skipped anomalous result node on page %d: %s", page_num, exc)
+                            logger.warning(
+                                "Skipped anomalous result node on page %d: %s",
+                                page_num,
+                                exc,
+                            )
                             continue
 
-                    Scraper._persist_search_progress(all_products, output_path, page_num)
-                    logger.info("[Search Query: '%s'] Page %d complete | Added +%d items | Total items: %d", query, page_num, page_extracted_count, len(all_products))
+                    Scraper._persist_search_progress(
+                        all_products, output_path, page_num
+                    )
+                    logger.info(
+                        "[Search Query: '%s'] Page %d complete | Added +%d items | Total items: %d",
+                        query,
+                        page_num,
+                        page_extracted_count,
+                        len(all_products),
+                    )
 
                     if len(all_products) >= settings.THRESHOLD_LIMIT:
                         break
 
                     next_selector = await Scraper._find_search_next_page(page)
                     if not next_selector:
-                        logger.info("Search pagination sequence hit final results page panel framework.")
+                        logger.info(
+                            "Search pagination sequence hit final results page panel framework."
+                        )
                         break
 
                     next_button = page.locator(next_selector).first
@@ -1470,20 +1768,30 @@ class Scraper:
 
                     try:
                         await next_button.click()
-                        await page.wait_for_load_state("domcontentloaded", timeout=15000)
+                        await page.wait_for_load_state(
+                            "domcontentloaded", timeout=15000
+                        )
                     except Exception:
-                        logger.warning("Pagination selection event execution caught exception step panel updates.")
+                        logger.warning(
+                            "Pagination selection event execution caught exception step panel updates."
+                        )
 
                     await Scraper.ensure_logged_in(page, search_url)
 
                     _CARD_SELECTOR = "div[data-component-type='s-search-result'][data-asin], div.s-result-item[data-asin]"
                     try:
-                        await page.wait_for_selector(_CARD_SELECTOR, state="attached", timeout=8000)
+                        await page.wait_for_selector(
+                            _CARD_SELECTOR, state="attached", timeout=8000
+                        )
                     except Exception:
-                        logger.warning("Catalog results not visible; re-verifying verification layers...")
+                        logger.warning(
+                            "Catalog results not visible; re-verifying verification layers..."
+                        )
                         if await Scraper.is_login_page(page):
                             await Scraper.ensure_logged_in(page, search_url)
-                            await page.wait_for_selector(_CARD_SELECTOR, state="attached", timeout=10000)
+                            await page.wait_for_selector(
+                                _CARD_SELECTOR, state="attached", timeout=10000
+                            )
 
                     await asyncio.sleep(PAGE_DELAY)
                     page_num += 1
@@ -1495,7 +1803,11 @@ class Scraper:
                 except Exception:
                     pass
 
-        logger.debug("Scraping completed successfully — %d elements processed via %d pages.", len(all_products), page_num)
+        logger.debug(
+            "Scraping completed successfully — %d elements processed via %d pages.",
+            len(all_products),
+            page_num,
+        )
         return {"total_products": len(all_products), "products": all_products}
 
     # ----- asynchronous single product scraping context -----
@@ -1577,7 +1889,10 @@ class Scraper:
                 f.write(html_content)
             logger.info("Raw source HTML committed successfully to storage workspace.")
         except OSError as e:
-            logger.error("Failed to write raw HTML layout to disk tracking structure paths: %s", e)
+            logger.error(
+                "Failed to write raw HTML layout to disk tracking structure paths: %s",
+                e,
+            )
 
     # ----- data display formatting output -----
     @staticmethod
